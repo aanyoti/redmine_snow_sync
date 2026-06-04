@@ -1,0 +1,249 @@
+<h2>ServiceNow Sync</h2>
+
+<%# ── Status bar ─────────────────────────────────────────────────────── %>
+<div class="box" style="display:flex; gap:24px; align-items:center; padding:12px 16px;">
+  <div>
+    <strong>Last sync:</strong>
+    <%= @settings['last_sync_at'].present? ? Time.parse(@settings['last_sync_at']).strftime('%Y-%m-%d %H:%M %Z') : 'Never' %>
+  </div>
+  <div>
+    <strong>Total synced:</strong> <%= @stats[:total] %>
+    &nbsp;|&nbsp;
+    <span style="color:green;"><strong>OK:</strong> <%= @stats[:ok] %></span>
+    &nbsp;|&nbsp;
+    <span style="color:#c22;"><strong>Errors:</strong> <%= @stats[:errors] %></span>
+  </div>
+  <div style="margin-left:auto;">
+    <button id="run-now-btn" class="button">&#9654; Sync Now</button>
+    <span id="run-now-status" style="margin-left:10px; font-style:italic;"></span>
+  </div>
+</div>
+
+<%# ── Settings form ──────────────────────────────────────────────────── %>
+<%= form_tag snow_sync_settings_path, method: :post do %>
+  <div class="box tabular">
+    <h3>ServiceNow Connection</h3>
+    <p>
+      <label>Instance URL</label>
+      <%= text_field_tag 'settings[snow_url]', @settings['snow_url'], class: 'wide', id: 'snow_url' %>
+    </p>
+    <p>
+      <label>Username</label>
+      <%= text_field_tag 'settings[snow_username]', @settings['snow_username'], class: 'wide',
+          id: 'snow_username', autocomplete: 'off' %>
+    </p>
+    <p>
+      <label>Password</label>
+      <%= password_field_tag 'settings[snow_password]', @settings['snow_password'], class: 'wide',
+          id: 'snow_password', autocomplete: 'new-password' %>
+    </p>
+    <p>
+      <label>&nbsp;</label>
+      <button type="button" id="test-conn-btn" class="button">&#10003; Test Connection</button>
+      <span id="test-conn-result" style="margin-left:10px; font-weight:bold;"></span>
+    </p>
+    <p style="color:#888; font-size:0.85em; margin-top:-6px;">
+      <em>Try each account (GetRestUser / WebServiceUser) — enter credentials above and click Test before saving.</em>
+    </p>
+  </div>
+
+  <div class="box tabular">
+    <h3>Sync Target</h3>
+    <p>
+      <label>Redmine Project</label>
+      <%= select_tag 'settings[target_project_id]',
+            options_from_collection_for_select(@projects, :id, :name, @settings['target_project_id'].to_i) %>
+    </p>
+    <p>
+      <label>Tracker</label>
+      <%= select_tag 'settings[target_tracker_id]',
+            options_from_collection_for_select(@trackers, :id, :name, @settings['target_tracker_id'].to_i) %>
+    </p>
+  </div>
+
+  <div class="box tabular">
+    <h3>ServiceNow Filters</h3>
+    <p>
+      <label>Assignment Groups <em style="font-weight:normal;">(comma-separated)</em></label>
+      <%= text_field_tag 'settings[assignment_groups]', @settings['assignment_groups'], class: 'wide' %>
+    </p>
+    <p>
+      <label>Request States <em style="font-weight:normal;">(comma-separated raw codes; leave blank to skip filter)</em></label>
+      <%= text_field_tag 'settings[poll_states]', @settings['poll_states'] %>
+      <em class="info">1 = Open &nbsp; 2 = Work in Progress &nbsp; 3 = Closed Complete</em>
+    </p>
+    <p>
+      <label>Service Delivery Stage <em style="font-weight:normal;">(comma-separated; leave blank to skip filter)</em></label>
+      <%= text_field_tag 'settings[poll_delivery_stage]', @settings['poll_delivery_stage'], class: 'wide' %>
+      <em class="info">e.g. <strong>Awaiting acceptance</strong> &nbsp; or &nbsp; Awaiting acceptance,Installation</em>
+    </p>
+    <p>
+      <label>Only import requests created in the last</label>
+      <%= text_field_tag 'settings[days_back]', @settings['days_back'], size: 4 %> days
+      <em class="info">Set to 0 to import all matching requests (no date limit)</em>
+    </p>
+    <p>
+      <label>Exchange Rate (1 USD =)</label>
+      <%= text_field_tag 'settings[zmw_usd_rate]', @settings['zmw_usd_rate'], size: 8 %> ZMW
+      <em class="info">Used to convert between USD and ZMW on imported quotes</em>
+    </p>
+  </div>
+
+  <div class="box tabular">
+    <h3>ServiceNow Field Names <em style="font-weight:normal; font-size:0.85em;">(adjust if your instance uses different API names)</em></h3>
+    <p>
+      <label>Account field</label>
+      <%= text_field_tag 'settings[field_account]', @settings['field_account'] %>
+      <em class="info">e.g. u_account or company</em>
+    </p>
+    <p>
+      <label>Order field</label>
+      <%= text_field_tag 'settings[field_order]', @settings['field_order'] %>
+      <em class="info">e.g. u_order</em>
+    </p>
+    <p>
+      <label>Service field</label>
+      <%= text_field_tag 'settings[field_service]', @settings['field_service'] %>
+      <em class="info">e.g. u_service or service_offering</em>
+    </p>
+  </div>
+
+  <div class="box tabular">
+    <h3>Salesforce Webhook</h3>
+    <p>
+      <label>Webhook URL <em style="font-weight:normal;">(read-only)</em></label>
+      <input type="text" value="<%= request.base_url %>/api/snow_sync/segments"
+             class="wide" readonly style="background:#f5f5f5; color:#555; cursor:text;">
+      <em class="info">POST this URL from Power Automate with your token in the <code>X-Webhook-Token</code> header</em>
+    </p>
+    <p>
+      <label>Webhook Token <span class="required">*</span></label>
+      <input type="text" id="webhook_token_field"
+             name="settings[webhook_token]"
+             value="<%= @settings['webhook_token'] %>"
+             class="wide" style="font-family:monospace;" autocomplete="off">
+      <button type="button" id="gen-token-btn" class="button" style="margin-left:6px;">&#8635; Generate</button>
+      <em class="info">Copy this value into the <code>X-Webhook-Token</code> header in your Power Automate HTTP action. Save settings after generating.</em>
+    </p>
+    <p>
+      <label>Opportunity Type → Tracker map</label>
+      <%= text_field_tag 'settings[opportunity_tracker_map]', @settings['opportunity_tracker_map'], class: 'wide' %>
+      <em class="info">Format: <code>New Business:14,Renewal:14,Upgrade:14,Change:14,Downgrade:14</code> — use tracker IDs</em>
+    </p>
+  </div>
+
+  <p><%= submit_tag 'Save Settings' %></p>
+<% end %>
+
+<%# ── Recent sync log ────────────────────────────────────────────────── %>
+<h3>Recent Sync Log</h3>
+<% if @records.any? %>
+  <table class="list">
+    <thead>
+      <tr>
+        <th>SNow Request #</th>
+        <th>Redmine Issue</th>
+        <th>Status</th>
+        <th>Synced At</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @records.each_with_index do |r, i| %>
+        <tr class="<%= cycle('odd','even') %>">
+          <td>
+            <a href="https://oneliquidsupport.service-now.com/nav_to.do?uri=sc_request.do?sys_id=<%= r.snow_sys_id %>"
+               target="_blank"><%= r.snow_number %></a>
+          </td>
+          <td>
+            <% if r.issue_id %>
+              <%= link_to "##{r.issue_id}", issue_path(r.issue_id) %>
+            <% end %>
+          </td>
+          <td style="color:<%= r.sync_status == 'ok' ? 'green' : '#c22' %>;">
+            <%= r.sync_status %>
+          </td>
+          <td><%= r.synced_at&.strftime('%Y-%m-%d %H:%M') %></td>
+          <td style="color:#c22; font-size:0.85em;"><%= r.sync_error %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p class="nodata">No sync records yet. Click "Sync Now" to run the first import.</p>
+<% end %>
+
+<script>
+// ── Generate Token ────────────────────────────────────────────────────────
+document.getElementById('gen-token-btn').addEventListener('click', function() {
+  var arr = new Uint8Array(32);
+  window.crypto.getRandomValues(arr);
+  var token = Array.from(arr).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+  document.getElementById('webhook_token_field').value = token;
+});
+
+// ── Test Connection ───────────────────────────────────────────────────────
+document.getElementById('test-conn-btn').addEventListener('click', function() {
+  var btn    = this;
+  var result = document.getElementById('test-conn-result');
+  var csrf   = document.querySelector('meta[name="csrf-token"]').content;
+
+  btn.disabled     = true;
+  result.style.color = '#555';
+  result.textContent = 'Testing…';
+
+  var body = new URLSearchParams({
+    url:      document.getElementById('snow_url').value,
+    username: document.getElementById('snow_username').value,
+    password: document.getElementById('snow_password').value,
+    authenticity_token: csrf
+  });
+
+  fetch('<%= snow_sync_test_connection_path %>', {
+    method:  'POST',
+    headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+    body:    body.toString()
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    result.style.color = data.ok ? 'green' : '#c22';
+    result.textContent = data.message;
+    btn.disabled = false;
+  })
+  .catch(function(err) {
+    result.style.color = '#c22';
+    result.textContent = 'Request failed: ' + err;
+    btn.disabled = false;
+  });
+});
+
+// ── Sync Now ──────────────────────────────────────────────────────────────
+document.getElementById('run-now-btn').addEventListener('click', function(e) {
+  e.preventDefault();
+  var btn    = this;
+  var status = document.getElementById('run-now-status');
+  btn.disabled = true;
+  status.textContent = 'Running…';
+
+  fetch('<%= snow_sync_run_now_path %>', {
+    method:  'POST',
+    headers: {
+      'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,
+      'Accept':       'application/json'
+    }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var msg = 'Imported: ' + data.imported + '  Skipped: ' + data.skipped;
+    if (data.errors && data.errors.length) msg += '  Errors: ' + data.errors.join('; ');
+    status.textContent = msg;
+    btn.disabled = false;
+    // Reload page after short delay to refresh log table
+    setTimeout(function() { location.reload(); }, 2000);
+  })
+  .catch(function(err) {
+    status.textContent = 'Request failed: ' + err;
+    btn.disabled = false;
+  });
+});
+</script>

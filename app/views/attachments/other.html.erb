@@ -1,0 +1,39 @@
+<%= render :layout => 'layouts/file' do %>
+
+  <% if @attachment.is_pdf? %>
+    <% pdf_url = download_named_attachment_url(@attachment, @attachment.filename) %>
+    <embed src="<%= pdf_url %>"
+           type="application/pdf"
+           width="100%"
+           height="900"
+           style="border:none; display:block;">
+    <p style="margin-top:8px;">
+      <%= link_to_attachment @attachment,
+            text:     l(:label_no_preview_download),
+            icon:     'download',
+            download: true,
+            class:    'icon icon-download' %>
+    </p>
+
+  <% else %>
+    <% kind = if @attachment.is_video?
+         'video'
+       elsif @attachment.is_audio?
+         'audio'
+       end %>
+
+    <%= render :partial => "common/other",
+               :locals => {
+                 :kind  => kind,
+                 :path  => download_named_attachment_url(@attachment, @attachment.filename),
+                 :download_link => link_to_attachment(
+                   @attachment,
+                   :text     => l(:label_no_preview_download),
+                   :icon     => 'download',
+                   :download => true,
+                   :class    => 'icon icon-download'
+                 )
+               } %>
+  <% end %>
+
+<% end %>

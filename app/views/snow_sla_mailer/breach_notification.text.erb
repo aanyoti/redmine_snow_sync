@@ -1,0 +1,14 @@
+Hello <%= @user.firstname %>,
+
+This is an SLA breach notification for the following issue:
+
+  Issue   : #<%= @issue.id %> — <%= @issue.subject %>
+  Status  : <%= @status_name %>
+  Elapsed : <%= @elapsed %> day(s)
+  Target  : <%= @target %> day(s)
+  Assignee: <%= @issue.assigned_to&.name || 'Unassigned' %>
+  Link    : <%= @issue_url %>
+
+Please review and take the necessary action to progress this order.
+
+-- Redmine SLA Monitor
