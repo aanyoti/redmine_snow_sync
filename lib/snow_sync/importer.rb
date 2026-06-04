@@ -96,6 +96,7 @@ module SnowSync
           )
           @imported += 1
           @log.info "SnowSync: imported #{number} → Redmine issue ##{issue.id}"
+          SnowSync::TeamsNotifier.notify('new_import', issue, snow_request: number)
         else
           msg = "#{number}: #{issue.errors.full_messages.join(', ')}"
           @errors << msg

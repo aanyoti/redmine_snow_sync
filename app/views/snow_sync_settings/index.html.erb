@@ -130,6 +130,11 @@
       <%= text_field_tag 'settings[opportunity_tracker_map]', @settings['opportunity_tracker_map'], class: 'wide' %>
       <em class="info">Format: <code>New Business:14,Renewal:14,Upgrade:14,Change:14,Downgrade:14</code> — use tracker IDs</em>
     </p>
+    <p>
+      <label>Teams Power Automate Webhook URL</label>
+      <%= text_field_tag 'settings[teams_webhook_url]', @settings['teams_webhook_url'], class: 'wide', placeholder: 'https://prod-xx.westeurope.logic.azure.com/workflows/...' %>
+      <em class="info">Power Automate HTTP trigger URL — receives event payloads for Teams adaptive card notifications</em>
+    </p>
   </div>
 
   <p><%= submit_tag 'Save Settings' %></p>

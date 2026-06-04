@@ -21,7 +21,8 @@ Redmine::Plugin.register :redmine_snow_sync do
     'zmw_usd_rate'            => '27.50',
     'last_sync_at'            => nil,
     'webhook_token'           => '',
-    'opportunity_tracker_map' => 'New Business:14,Renewal:14,Upgrade:14,Change:14,Downgrade:14'
+    'opportunity_tracker_map' => 'New Business:14,Renewal:14,Upgrade:14,Change:14,Downgrade:14',
+    'teams_webhook_url'       => ''
   }, partial: 'settings/snow_sync_settings'
 
   menu :admin_menu, :snow_sync,
@@ -40,8 +41,25 @@ ActiveSupport.on_load(:active_record) do
 
     def record_sla_status_change
       return unless saved_change_to_status_id?
+      return unless [14, 18].include?(tracker_id)
+
       old_status_id = saved_change_to_status_id.first
+
+      # SLA timer
       SnowSlaTimer.on_status_change(self, old_status_id)
+
+      # Teams — status change
+      SnowSync::TeamsNotifier.notify('status_change', self,
+        old_status: IssueStatus.find_by(id: old_status_id)&.name,
+        new_status: status.name
+      )
+
+      # Teams — rejection (specific event when entering Rejection Pending)
+      rejection_status = IssueStatus.find_by(name: 'Rejection Pending')
+      if rejection_status && status_id == rejection_status.id
+        SnowSync::TeamsNotifier.notify('rejection', self)
+      end
+
     rescue => e
       Rails.logger.error "SnowSLA: hook error on issue ##{id}: #{e.message}"
     end

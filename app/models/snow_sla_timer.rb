@@ -56,6 +56,12 @@ class SnowSlaTimer < ActiveRecord::Base
         SnowSlaMailer.breach_notification(recipient, issue, issue.status.name, elapsed, target).deliver_now rescue nil
       end
 
+      # Teams notification
+      SnowSync::TeamsNotifier.notify('sla_breach', issue,
+        elapsed_days: elapsed,
+        target_days:  target
+      )
+
       timer.update!(breached: true, notified_at: now)
       Rails.logger.warn "SnowSLA: breach on issue ##{issue.id} in status '#{issue.status.name}' (#{elapsed}d / #{target}d)"
     end
