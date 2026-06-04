@@ -24,25 +24,28 @@ module SnowSync
     private
 
     def build_payload(event, issue, extra)
+      cfg       = Setting.plugin_redmine_snow_sync
       cf        = ->(name) { IssueCustomField.find_by(name: name)&.id&.to_s }
       assignee  = issue.assigned_to
       kam_name  = issue.custom_field_value(cf.('Prepared By')).to_s.presence
       order_num = issue.custom_field_value(cf.('Order Number')).to_s.presence
       account   = issue.custom_field_value(cf.('Account')).to_s.presence
+      test_email = cfg['teams_test_email'].to_s.strip.presence
 
       {
-        event:           event,
-        issue_id:        issue.id,
-        issue_subject:   issue.subject,
-        issue_url:       "#{REDMINE_URL}/issues/#{issue.id}",
-        tracker:         issue.tracker.name,
-        status:          issue.status.name,
-        project:         issue.project.name,
-        order_number:    order_num,
-        account:         account,
-        assignee_name:   assignee&.name,
-        assignee_email:  assignee&.mail,
-        kam_name:        kam_name,
+        event:            event,
+        issue_id:         issue.id,
+        issue_subject:    issue.subject,
+        issue_url:        "#{REDMINE_URL}/issues/#{issue.id}",
+        tracker:          issue.tracker.name,
+        status:           issue.status.name,
+        project:          issue.project.name,
+        order_number:     order_num,
+        account:          account,
+        assignee_name:    assignee&.name,
+        assignee_email:   assignee&.mail,
+        kam_name:         kam_name,
+        test_recipient:   test_email,
       }.merge(extra).compact
     end
 

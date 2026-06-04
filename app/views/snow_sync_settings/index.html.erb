@@ -135,6 +135,11 @@
       <%= text_field_tag 'settings[teams_webhook_url]', @settings['teams_webhook_url'], class: 'wide', placeholder: 'https://prod-xx.westeurope.logic.azure.com/workflows/...' %>
       <em class="info">Power Automate HTTP trigger URL — receives event payloads for Teams adaptive card notifications</em>
     </p>
+    <p>
+      <label>Teams Test Recipient Email</label>
+      <%= text_field_tag 'settings[teams_test_email]', @settings['teams_test_email'], class: 'wide', placeholder: 'anthony.anyoti@liquidtelecom.com' %>
+      <em class="info">When set, ALL Teams notifications are also sent to this address — use during testing, clear when live</em>
+    </p>
   </div>
 
   <p><%= submit_tag 'Save Settings' %></p>

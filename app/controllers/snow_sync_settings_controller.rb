@@ -48,7 +48,7 @@ class SnowSyncSettingsController < ApplicationController
       :target_project_id, :target_tracker_id,
       :assignment_groups, :poll_states, :poll_delivery_stage,
       :field_account, :field_order, :field_service, :days_back,
-      :zmw_usd_rate, :webhook_token, :opportunity_tracker_map, :teams_webhook_url
+      :zmw_usd_rate, :webhook_token, :opportunity_tracker_map, :teams_webhook_url, :teams_test_email
     )
   end
 end

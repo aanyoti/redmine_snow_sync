@@ -22,7 +22,8 @@ Redmine::Plugin.register :redmine_snow_sync do
     'last_sync_at'            => nil,
     'webhook_token'           => '',
     'opportunity_tracker_map' => 'New Business:14,Renewal:14,Upgrade:14,Change:14,Downgrade:14',
-    'teams_webhook_url'       => ''
+    'teams_webhook_url'       => '',
+    'teams_test_email'        => ''
   }, partial: 'settings/snow_sync_settings'
 
   menu :admin_menu, :snow_sync,
