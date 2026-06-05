@@ -303,7 +303,10 @@ module SnowSync
       return unless data[:prepared_by].present?
 
       kam = SnowSync::LdapUserFinder.find_or_create(data[:prepared_by])
-      return unless kam
+      unless kam
+        @log.warn "SnowSync: could not find '#{data[:prepared_by]}' in AD — skipping KAM watcher on issue ##{issue.id}"
+        return
+      end
 
       SnowSync::KamGroupManager.ensure_member(kam)
       Watcher.where(watchable: issue, user: kam).first_or_create!
