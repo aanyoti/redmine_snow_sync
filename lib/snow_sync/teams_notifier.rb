@@ -11,14 +11,24 @@ module SnowSync
     end
 
     def send_notification(event, issue, extra = {})
-      url = Setting.plugin_redmine_snow_sync['teams_webhook_url'].to_s.strip
+      cfg        = Setting.plugin_redmine_snow_sync
+      test_email = cfg['teams_test_email'].to_s.strip.presence
+
+      # Email notification (always sent when test_email is set)
+      if test_email.present?
+        SnowSyncMailer.event_notification(test_email, event, issue, extra).deliver_now
+        Rails.logger.info "SnowSync Email: sent '#{event}' to #{test_email} for issue ##{issue.id}"
+      end
+
+      # Teams notification (only when webhook URL is configured and working)
+      url = cfg['teams_webhook_url'].to_s.strip
       return unless url.present?
 
       payload = build_payload(event, issue, extra)
       post(url, payload)
       Rails.logger.info "SnowSync Teams: sent '#{event}' notification for issue ##{issue.id}"
     rescue => e
-      Rails.logger.error "SnowSync Teams: failed for issue ##{issue.id}: #{e.message}"
+      Rails.logger.error "SnowSync Teams/Email: failed for issue ##{issue.id}: #{e.message}"
     end
 
     private

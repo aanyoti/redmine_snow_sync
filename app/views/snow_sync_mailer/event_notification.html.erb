@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body      { font-family: Arial, sans-serif; font-size: 14px; color: #333; margin: 0; padding: 0; }
+    .wrapper  { max-width: 600px; margin: 0 auto; padding: 24px; }
+    .header   { background: #273c88; color: #fff; padding: 16px 20px; border-radius: 4px 4px 0 0; }
+    .header h2{ margin: 0; font-size: 18px; }
+    .body     { border: 1px solid #ddd; border-top: none; padding: 20px; border-radius: 0 0 4px 4px; }
+    .facts    { width: 100%; border-collapse: collapse; margin: 12px 0; }
+    .facts td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .facts td:first-child { font-weight: bold; color: #555; width: 90px; }
+    .message  { background: #f8f8f8; border-left: 4px solid #273c88; padding: 12px 16px; margin: 16px 0; font-size: 13px; line-height: 1.6; }
+    .message.warn { border-left-color: #c8187d; }
+    .btn      { display: inline-block; padding: 10px 20px; background: #273c88; color: #fff !important; text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: bold; margin-top: 16px; }
+    .footer   { font-size: 11px; color: #999; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="header">
+    <h2>
+      <%= @event == 'sla_breach'    ? '⚠  SLA Breach'              :
+          @event == 'new_import'    ? '📋 New Order Received'       :
+          @event == 'status_change' ? '🔄 Status Update'            :
+          @event == 'rejection'     ? '❌ Order Rejection Pending'  :
+          @event == 'kam_not_found' ? '👤 KAM Not Found in AD'      :
+                                       'Redmine Notification' %>
+    </h2>
+  </div>
+
+  <div class="body">
+
+    <table class="facts">
+      <tr><td>Issue</td>    <td>#<%= @issue.id %> — <%= @issue.subject %></td></tr>
+      <tr><td>Tracker</td>  <td><%= @issue.tracker.name %></td></tr>
+      <tr><td>Status</td>   <td><%= @issue.status.name %></td></tr>
+      <tr><td>Account</td>  <td><%= @issue.custom_field_value(IssueCustomField.find_by(name: 'Account')) %></td></tr>
+      <tr><td>Order #</td>  <td><%= @order_num %></td></tr>
+      <tr><td>Assignee</td> <td><%= @issue.assigned_to&.name || 'Unassigned' %></td></tr>
+      <% if @extra[:kam_name].present? %>
+      <tr><td>KAM</td>      <td><%= @extra[:kam_name] %></td></tr>
+      <% end %>
+    </table>
+
+    <% if @event == 'sla_breach' %>
+      <div class="message warn">
+        This order has been in <strong><%= @issue.status.name %></strong> for
+        <strong><%= @extra[:elapsed_days] %> day(s)</strong> against a target of
+        <strong><%= @extra[:target_days] %> day(s)</strong>. Please action immediately.
+      </div>
+
+    <% elsif @event == 'new_import' %>
+      <div class="message">
+        A new order has been imported from ServiceNow
+        (<strong><%= @extra[:snow_request] %></strong>) and is awaiting review.
+      </div>
+
+    <% elsif @event == 'status_change' %>
+      <div class="message">
+        Status changed: <strong><%= @extra[:old_status] %></strong>
+        &rarr; <strong><%= @extra[:new_status] %></strong>
+      </div>
+
+    <% elsif @event == 'rejection' %>
+      <div class="message warn">
+        This order has been moved to <strong>Rejection Pending</strong>.
+        The KAM (<strong><%= @issue.custom_field_value(IssueCustomField.find_by(name: 'Prepared By')) %></strong>)
+        has <strong>7 days</strong> to respond.
+      </div>
+
+    <% elsif @event == 'kam_not_found' %>
+      <div class="message warn">
+        The name <strong>&ldquo;<%= @extra[:kam_name] %>&rdquo;</strong> from the quote PDF
+        could not be matched in Active Directory.<br><br>
+        The KAM watcher was <strong>not added automatically</strong>.<br><br>
+        <strong>Action required:</strong>
+        <ol style="margin: 8px 0 0 0; padding-left: 20px;">
+          <li>Check AD for a name mismatch (e.g. maiden vs married name)</li>
+          <li>Add the correct user as a watcher on the issue manually</li>
+        </ol>
+      </div>
+    <% end %>
+
+    <a href="<%= @issue_url %>" class="btn"><%= @order_num %></a>
+
+  </div>
+
+  <div class="footer">
+    Redmine &mdash; projects-litzm.liquidtelecom.zm &mdash; This is an automated notification.
+  </div>
+
+</div>
+</body>
+</html>
