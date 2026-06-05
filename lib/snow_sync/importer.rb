@@ -305,6 +305,7 @@ module SnowSync
       kam = SnowSync::LdapUserFinder.find_or_create(data[:prepared_by])
       unless kam
         @log.warn "SnowSync: could not find '#{data[:prepared_by]}' in AD — skipping KAM watcher on issue ##{issue.id}"
+        SnowSync::TeamsNotifier.notify('kam_not_found', issue, kam_name: data[:prepared_by])
         return
       end
 
