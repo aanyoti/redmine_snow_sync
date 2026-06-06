@@ -44,6 +44,7 @@ ActiveSupport.on_load(:active_record) do
     after_save :snow_sync_after_save
     after_save :record_sla_status_change
     validate   :snow_validate_pr_transition
+    validate   :snow_validate_build_approval_sendback
 
     private
 
@@ -78,6 +79,20 @@ ActiveSupport.on_load(:active_record) do
       errors.add(:base, 'A contractor quote (PDF) must be attached') if pdfs.zero?
     end
 
+    # ── Build Approval send-back validation ───────────────────────────────────
+    def snow_validate_build_approval_sendback
+      return unless Thread.current[:snow_build_approval_sendback] == id
+      return unless tracker_id == 14 &&
+                    status_id_changed? &&
+                    status_id == 50 &&   # Purchase-Requisition
+                    status_id_was == 90  # Build Approval
+
+      notes = current_journal&.notes.to_s.strip
+      if notes.blank?
+        errors.add(:base, 'A comment explaining what needs to be corrected is required when sending back for revision')
+      end
+    end
+
     # ── After-save hooks ──────────────────────────────────────────────────────
     def snow_sync_after_save
       return unless [14, 18].include?(tracker_id)
@@ -89,11 +104,20 @@ ActiveSupport.on_load(:active_record) do
 
       return unless saved_change_to_status_id?
 
-      # Auto-assign Build Approval to Musonda Tekela (id=17)
-      if status_id == 90  # Build Approval
-        build_approver_id = 17
-        update_column(:assigned_to_id, build_approver_id)
-        Rails.logger.info "SnowSync: issue ##{id} moved to Build Approval → assigned to user ##{build_approver_id}"
+      # Build Approval auto-assign + contractor handoff
+      if status_id == 90  # → Build Approval: store contractor, assign Musonda
+        contractor_id = assigned_to_id
+        SnowBuildApprovalContractor.upsert({ issue_id: id, contractor_id: contractor_id },
+                                            unique_by: :issue_id) if contractor_id
+        update_column(:assigned_to_id, 17)
+        Rails.logger.info "SnowSync: issue ##{id} → Build Approval (contractor ##{contractor_id} stored, assigned to Musonda)"
+
+      elsif status_id == 51 && status_id_was == 90  # Build Approved → Fiber Build: restore contractor
+        rec = SnowBuildApprovalContractor.find_by(issue_id: id)
+        if rec&.contractor_id
+          update_column(:assigned_to_id, rec.contractor_id)
+          Rails.logger.info "SnowSync: issue ##{id} → Fiber Build (reassigned to contractor ##{rec.contractor_id})"
+        end
       end
     end
 
