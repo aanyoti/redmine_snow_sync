@@ -33,23 +33,68 @@ end
 
 Dir[File.expand_path('lib/snow_sync/*.rb', __dir__)].sort.each { |f| require f }
 
-# SLA timer hook — fires on every issue save
+# Wire up the IssuesController patch for Purchase-Requisition transition validation
+Rails.configuration.to_prepare do
+  IssuesController.prepend SnowSync::IssueControllerPatch
+end
+
+# Issue model hooks
 ActiveSupport.on_load(:active_record) do
   Issue.class_eval do
     after_save :snow_sync_after_save
     after_save :record_sla_status_change
+    validate   :snow_validate_pr_transition
 
     private
 
+    # ── Purchase-Requisition transition validation ────────────────────────────
+    # Runs on every save; only active during Contractor-Assignment → PR transition
+    # (thread-local set by IssueControllerPatch#update)
+    def snow_validate_pr_transition
+      filenames = Thread.current[:snow_pr_filenames]
+      return unless filenames  # not a guarded transition
+
+      return unless tracker_id == 14 &&
+                    status_id_changed? &&
+                    status_id == 50 &&   # Purchase-Requisition
+                    status_id_was == 49  # Contractor-Assignment
+
+      # 1. All material CFs must be filled in
+      SnowSync::IssueControllerPatch::MATERIAL_CF_NAMES.each do |cf_name|
+        cf  = IssueCustomField.find_by(name: cf_name)
+        next unless cf
+        val = custom_field_value(cf.id.to_s).to_s.strip
+        errors.add(:base, "#{cf_name} is required before submitting to Purchase-Requisition") if val.blank?
+      end
+
+      # 2. At least 5 photos (jpg / png)
+      photos = filenames.count { |f| f =~ /\.(jpg|jpeg|png)$/i }
+      if photos < 5
+        errors.add(:base, "At least 5 site photos (JPG/PNG) are required — #{photos} attached")
+      end
+
+      # 3. At least 1 PDF quote
+      pdfs = filenames.count { |f| f =~ /\.pdf$/i }
+      errors.add(:base, 'A contractor quote (PDF) must be attached') if pdfs.zero?
+    end
+
+    # ── After-save hooks ──────────────────────────────────────────────────────
     def snow_sync_after_save
       return unless [14, 18].include?(tracker_id)
 
-      # Auto-assign target version based on due_date (fires on every save)
-      if saved_change_to_due_date? || fixed_version_id.nil? && due_date.present?
+      # Auto-assign target version based on due_date
+      if saved_change_to_due_date? || (fixed_version_id.nil? && due_date.present?)
         SnowSync::VersionManager.auto_assign(self)
       end
 
       return unless saved_change_to_status_id?
+
+      # Auto-assign Build Approval to Musonda Tekela (id=17)
+      if status_id == 90  # Build Approval
+        build_approver_id = 17
+        update_column(:assigned_to_id, build_approver_id)
+        Rails.logger.info "SnowSync: issue ##{id} moved to Build Approval → assigned to user ##{build_approver_id}"
+      end
     end
 
     def record_sla_status_change
@@ -67,7 +112,7 @@ ActiveSupport.on_load(:active_record) do
         new_status: status.name
       )
 
-      # Teams — rejection (specific event when entering Rejection Pending)
+      # Teams — rejection
       rejection_status = IssueStatus.find_by(name: 'Rejection Pending')
       if rejection_status && status_id == rejection_status.id
         SnowSync::TeamsNotifier.notify('rejection', self)
