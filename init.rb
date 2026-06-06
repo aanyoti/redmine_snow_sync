@@ -33,9 +33,14 @@ end
 
 Dir[File.expand_path('lib/snow_sync/*.rb', __dir__)].sort.each { |f| require f }
 
-# Wire up the IssuesController patch for Purchase-Requisition transition validation
+# Wire up controller and model patches
 Rails.configuration.to_prepare do
   IssuesController.prepend SnowSync::IssueControllerPatch
+
+  # Patch AdvancedChecklist to auto-assign checklist items to the issue's assignee
+  if defined?(AdvancedChecklist)
+    AdvancedChecklist.prepend SnowSync::AdvancedChecklistPatch
+  end
 end
 
 # Issue model hooks
