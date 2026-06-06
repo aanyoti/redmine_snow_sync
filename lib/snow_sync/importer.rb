@@ -144,10 +144,13 @@ module SnowSync
 
       cf_vals = build_cf_values(rec)
 
-      # Set Service Type if C2
+      # Set Service Type and Opportunity Type if C2
       if result && result[:service_type]
         service_type_cf_id = cf('Service Type')
         cf_vals[service_type_cf_id] = result[:service_type] if service_type_cf_id
+
+        opp_type_cf_id = cf('Opportunity Type')
+        cf_vals[opp_type_cf_id] = result[:service_type] if opp_type_cf_id
       end
 
       # Initialise Services field with this first component
@@ -157,6 +160,10 @@ module SnowSync
       end
 
       cf_vals = cf_vals.compact
+
+      # Auto-assign category (Segment - Enterprise default; update manually for Wholesale/Internal)
+      default_category = IssueCategory.find_by(project_id: project.id, name: 'Segment - Enterprise')
+      issue.category_id = default_category.id if default_category
 
       # Warn if any CF value will be silently dropped (not available for this tracker+project)
       available_ids = issue.available_custom_fields.map { |cf| cf.id.to_s }.to_set

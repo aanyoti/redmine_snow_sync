@@ -36,9 +36,21 @@ Dir[File.expand_path('lib/snow_sync/*.rb', __dir__)].sort.each { |f| require f }
 # SLA timer hook — fires on every issue save
 ActiveSupport.on_load(:active_record) do
   Issue.class_eval do
+    after_save :snow_sync_after_save
     after_save :record_sla_status_change
 
     private
+
+    def snow_sync_after_save
+      return unless [14, 18].include?(tracker_id)
+
+      # Auto-assign target version based on due_date (fires on every save)
+      if saved_change_to_due_date? || fixed_version_id.nil? && due_date.present?
+        SnowSync::VersionManager.auto_assign(self)
+      end
+
+      return unless saved_change_to_status_id?
+    end
 
     def record_sla_status_change
       return unless saved_change_to_status_id?
