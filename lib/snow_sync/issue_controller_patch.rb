@@ -11,13 +11,12 @@ module SnowSync
          @issue.status_id  == FROM_STATUS &&
          params.dig(:issue, :status_id).to_i == TO_STATUS
 
-        existing = @issue.attachments.map(&:filename)
         incoming = (params[:attachments] || {}).values
                      .select { |a| a.is_a?(Hash) }
                      .map    { |a| (a[:filename] || a['filename']).to_s }
                      .reject(&:blank?)
 
-        Thread.current[:snow_pr_filenames] = existing + incoming
+        Thread.current[:snow_pr_filenames] = incoming
       end
 
       begin
