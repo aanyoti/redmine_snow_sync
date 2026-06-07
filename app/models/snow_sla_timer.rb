@@ -3,10 +3,24 @@ class SnowSlaTimer < ActiveRecord::Base
   belongs_to :status, class_name: 'IssueStatus'
 
   # SLA targets in calendar days per status name.
-  # Times for remaining statuses will be added once full workflow is confirmed.
   SLA_DAYS = {
-    'Service Request Review' => 2,
-    'Service Scheduling'     => 1,
+    # Commercial Orders
+    'Service Request Review'   => 2,
+    'Service Scheduling'       => 1,
+    'Contractor-Assignment'    => 3,
+    'Purchase-Requisition'     => 5,
+    'Build Approval'           => 2,
+    'Fiber Build'              => 14,
+    'Pending Approval Project' => 3,
+    'Handover Project'         => 3,
+    'Requires Sign-off Project'=> 2,
+    # C2
+    'C2 - Service Request Review'      => 2,
+    'C2 - Technical Assessment'        => 3,
+    'C2 - Provisioning'                => 5,
+    'C2 - Configuration & Testing'     => 3,
+    'C2 - UAT'                         => 2,
+    'C2 - Handover'                    => 2,
   }.freeze
 
   def self.on_status_change(issue, old_status_id)
