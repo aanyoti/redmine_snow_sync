@@ -8,4 +8,5 @@ Rails.application.routes.draw do
   post 'api/snow_sync/salesforce_sync',     to: 'snow_sync_webhook#salesforce_sync', as: 'snow_sync_salesforce_sync'
   get  'api/snow_sync/salesforce_report',   to: 'snow_sync_webhook#salesforce_report', as: 'snow_sync_salesforce_report'
   post 'api/snow_sync/retail_preview',      to: 'snow_sync_webhook#retail_preview',   as: 'snow_sync_retail_preview'
+  get  'snow_sla_report',                   to: 'snow_sla_report#index',             as: 'snow_sla_report'
 end

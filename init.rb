@@ -29,6 +29,10 @@ Redmine::Plugin.register :redmine_snow_sync do
   menu :admin_menu, :snow_sync,
        { controller: 'snow_sync_settings', action: 'index' },
        caption: 'ServiceNow Sync'
+
+  menu :admin_menu, :snow_sla_report,
+       { controller: 'snow_sla_report', action: 'index' },
+       caption: 'SLA Report'
 end
 
 Dir[File.expand_path('lib/snow_sync/*.rb', __dir__)].sort.each { |f| require f }

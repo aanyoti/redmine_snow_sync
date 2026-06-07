@@ -14,9 +14,15 @@ module SnowSync
       parts = display_name.strip.split(' ', 2)
       return nil if parts.size < 2
 
-      # Already in Redmine?
+      # Already in Redmine? Try exact name first, then first-name-only (handles surname changes)
       user = User.active.find_by(firstname: parts[0], lastname: parts[1])
       return user if user
+
+      first_name_matches = User.active.where(firstname: parts[0]).to_a
+      if first_name_matches.size == 1
+        Rails.logger.info "SnowSync: matched '#{display_name}' to #{first_name_matches.first.login} by first name (surname differs)"
+        return first_name_matches.first
+      end
 
       # Query AD
       entry = ldap_lookup(display_name, parts)

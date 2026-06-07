@@ -1,0 +1,44 @@
+class SnowSlaReportController < ApplicationController
+  before_action :require_admin
+
+  def index
+    scope = SnowSlaTimer.joins(:issue, :status)
+                        .where(issues: { tracker_id: [14, 18] })
+
+    # Filters
+    @filter_result  = params[:result]
+    @filter_open    = params[:open]
+    @filter_tracker = params[:tracker_id].presence
+
+    if @filter_result == 'breached'
+      scope = scope.where(breached: true)
+    elsif @filter_result == 'on_track'
+      scope = scope.where(breached: false).where('snow_sla_timers.due_at IS NULL OR snow_sla_timers.due_at >= ?', Time.current)
+    elsif @filter_result == 'no_target'
+      scope = scope.where(due_at: nil)
+    end
+
+    scope = scope.where(exited_at: nil) if @filter_open == '1'
+    scope = scope.where(issues: { tracker_id: @filter_tracker.to_i }) if @filter_tracker
+
+    @timers = scope.includes(:status, :issue)
+                   .order('snow_sla_timers.entered_at DESC')
+                   .page(params[:page]).per_page(50)
+
+    @account_cf_id = CustomField.find_by(name: 'Account')&.id&.to_s
+
+    @summary = {
+      total:      SnowSlaTimer.where(exited_at: nil, issues: { tracker_id: [14, 18] })
+                              .joins(:issue).count,
+      breached:   SnowSlaTimer.joins(:issue).where(exited_at: nil, breached: true, issues: { tracker_id: [14, 18] }).count,
+      due_today:  SnowSlaTimer.joins(:issue)
+                              .where(exited_at: nil, breached: false, issues: { tracker_id: [14, 18] })
+                              .where('due_at BETWEEN ? AND ?', Time.current.beginning_of_day, Time.current.end_of_day)
+                              .count,
+      on_track:   SnowSlaTimer.joins(:issue)
+                              .where(exited_at: nil, breached: false, issues: { tracker_id: [14, 18] })
+                              .where('due_at IS NULL OR due_at > ?', Time.current.end_of_day)
+                              .count
+    }
+  end
+end

@@ -1,0 +1,139 @@
+<h2>&#9200; SLA Report &mdash; Commercial Orders &amp; C2</h2>
+
+<%# ── Summary cards ──────────────────────────────────────────────────── %>
+<div style="display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
+  <% cards = [
+    { label: 'Active Timers',  value: @summary[:total],     color: '#2980b9' },
+    { label: 'Breached',       value: @summary[:breached],  color: '#c0392b' },
+    { label: 'Due Today',      value: @summary[:due_today], color: '#e67e22' },
+    { label: 'On Track',       value: @summary[:on_track],  color: '#27ae60' },
+  ] %>
+  <% cards.each do |c| %>
+    <div style="padding:14px 24px; border-radius:4px; background:<%= c[:color] %>; color:#fff; min-width:110px; text-align:center;">
+      <div style="font-size:2em; font-weight:bold; line-height:1.1;"><%= c[:value] %></div>
+      <div style="font-size:0.82em; margin-top:2px;"><%= c[:label] %></div>
+    </div>
+  <% end %>
+</div>
+
+<%# ── Filters ─────────────────────────────────────────────────────────── %>
+<%= form_tag snow_sla_report_path, method: :get, style: 'margin-bottom:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;' do %>
+  <%= label_tag :result, 'Show:' %>
+  <%= select_tag :result,
+        options_for_select([
+          ['All', ''],
+          ['Breached only', 'breached'],
+          ['On track', 'on_track'],
+          ['No SLA target', 'no_target']
+        ], @filter_result),
+        style: 'padding:3px 6px;' %>
+
+  <%= label_tag :tracker_id, 'Tracker:' %>
+  <%= select_tag :tracker_id,
+        options_for_select([['All', '']] + Tracker.where(id: [14, 18]).map { |t| [t.name, t.id] }, @filter_tracker),
+        style: 'padding:3px 6px;' %>
+
+  <%= check_box_tag :open, '1', @filter_open == '1' %>
+  <%= label_tag :open, 'Open timers only' %>
+
+  <%= submit_tag 'Filter', name: nil, class: 'button' %>
+  <%= link_to 'Reset', snow_sla_report_path, class: 'button', style: 'margin-left:4px;' %>
+<% end %>
+
+<%# ── Table ───────────────────────────────────────────────────────────── %>
+<table class="list">
+  <thead>
+    <tr>
+      <th>Issue</th>
+      <th>Account</th>
+      <th>Status</th>
+      <th>Entered</th>
+      <th>Target</th>
+      <th>Elapsed</th>
+      <th>Due</th>
+      <th>Result</th>
+      <th>Exited</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @timers.each do |timer| %>
+      <%
+        elapsed = ((Time.current - timer.entered_at) / 1.day).round(1)
+        target  = SnowSlaTimer::SLA_DAYS[timer.status.name]
+        pct     = (target && elapsed) ? (elapsed.to_f / target * 100).round : nil
+        breached_now = timer.breached || (target && timer.exited_at.nil? && elapsed.to_f > target)
+
+        row_style =
+          if breached_now
+            'background:#fdf0ef;'
+          elsif pct && pct >= 75
+            'background:#fef9f0;'
+          else
+            ''
+          end
+
+        result_label =
+          if timer.exited_at && target
+            timer.exited_at <= timer.due_at ? 'Met' : 'Breached'
+          elsif timer.exited_at && target.nil?
+            'Closed (no target)'
+          elsif timer.exited_at
+            'Closed'
+          elsif breached_now
+            'BREACHED'
+          elsif target.nil?
+            'No target'
+          else
+            'On Track'
+          end
+
+        result_color =
+          case result_label
+          when 'BREACHED', 'Breached' then '#c0392b'
+          when 'Met'                  then '#27ae60'
+          when 'On Track'             then '#27ae60'
+          else '#888'
+          end
+
+        account = (@account_cf_id ? timer.issue.custom_field_value(@account_cf_id).to_s : '').truncate(40)
+      %>
+      <tr style="<%= row_style %>">
+        <td><%= link_to "##{timer.issue_id}", issue_path(timer.issue_id) %></td>
+        <td style="font-size:0.88em; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<%= account %>">
+          <%= account %>
+        </td>
+        <td style="font-size:0.88em;"><%= timer.status.name %></td>
+        <td style="font-size:0.85em; white-space:nowrap;"><%= timer.entered_at.strftime('%d %b %H:%M') %></td>
+        <td style="text-align:center;"><%= target ? "#{target}d" : '—' %></td>
+        <td style="text-align:center; font-weight:bold; color:<%= result_color %>;"><%= elapsed %>d</td>
+        <td style="font-size:0.85em; white-space:nowrap;">
+          <% if timer.due_at %>
+            <%= timer.due_at.strftime('%d %b %H:%M') %>
+          <% else %>
+            <span style="color:#aaa;">—</span>
+          <% end %>
+        </td>
+        <td style="font-weight:bold; color:<%= result_color %>;"><%= result_label %></td>
+        <td style="font-size:0.85em; white-space:nowrap;">
+          <% if timer.exited_at %>
+            <%= timer.exited_at.strftime('%d %b %H:%M') %>
+          <% else %>
+            <span style="color:#aaa;">active</span>
+          <% end %>
+        </td>
+      </tr>
+    <% end %>
+    <% if @timers.empty? %>
+      <tr><td colspan="9" style="text-align:center; color:#888; padding:20px;">No records match the selected filters.</td></tr>
+    <% end %>
+  </tbody>
+</table>
+
+<%# ── Pagination ──────────────────────────────────────────────────────── %>
+<div style="margin-top:12px;">
+  <%= pagination_links_full @timers %>
+</div>
+
+<div style="margin-top:20px; padding:10px; background:#f5f5f5; border-radius:4px; font-size:0.85em; color:#666;">
+  <strong>Power BI:</strong> Query the <code>snow_sla_report_view</code> PostgreSQL view directly for all historical SLA data with elapsed_days, target_days, and sla_result columns.
+</div>

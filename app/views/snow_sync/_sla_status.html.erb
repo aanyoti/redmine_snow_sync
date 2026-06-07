@@ -1,0 +1,73 @@
+<% if [14, 18].include?(issue.tracker_id) %>
+<%
+  timer   = SnowSlaTimer.where(issue_id: issue.id, status_id: issue.status_id, exited_at: nil)
+                        .order(:entered_at).last
+  target  = SnowSlaTimer::SLA_DAYS[issue.status.name]
+  elapsed = timer ? ((Time.current - timer.entered_at) / 1.day).round(1) : nil
+  pct     = (target && elapsed) ? (elapsed.to_f / target * 100).round : nil
+
+  border_color =
+    if timer.nil?
+      '#aaa'
+    elsif timer.breached || (target && elapsed.to_f > target)
+      '#c0392b'
+    elsif pct && pct >= 75
+      '#e67e22'
+    else
+      '#27ae60'
+    end
+
+  bg_color =
+    if timer.nil?
+      '#f9f9f9'
+    elsif timer.breached || (target && elapsed.to_f > target)
+      '#fdf0ef'
+    elsif pct && pct >= 75
+      '#fef9f0'
+    else
+      '#f0faf4'
+    end
+%>
+
+<div id="snow-sla-panel" style="margin-top:14px; padding:10px 14px; border-left:4px solid <%= border_color %>; background:<%= bg_color %>; border-radius:3px; font-size:0.9em;">
+  <strong style="display:block; margin-bottom:4px; font-size:1em;">&#9200; SLA Status</strong>
+
+  <% if timer.nil? %>
+    <span style="color:#888;">No active SLA timer for this status.</span>
+
+  <% elsif timer.breached %>
+    <span style="color:#c0392b; font-weight:bold;">&#9888; BREACHED</span>
+    &mdash;
+    in <em><%= issue.status.name %></em> for <strong><%= elapsed %></strong> day(s)
+    <% if target %>
+      &nbsp;(target was <strong><%= target %></strong> day<%= target == 1 ? '' : 's' %>)
+    <% end %>
+    <% if timer.notified_at %>
+      &nbsp;&bull;&nbsp;<span style="color:#888;">Notified <%= distance_of_time_in_words(timer.notified_at, Time.current) %> ago</span>
+    <% end %>
+
+  <% elsif target %>
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <div>
+        <span style="color:<%= border_color %>; font-weight:bold;"><%= elapsed %></span>
+        &thinsp;/&thinsp;
+        <strong><%= target %></strong> day<%= target == 1 ? '' : 's' %>
+      </div>
+      <div style="flex:1; min-width:100px; max-width:200px; background:#ddd; border-radius:4px; height:8px; overflow:hidden;">
+        <div style="width:<%= [pct, 100].min %>%; height:100%; background:<%= border_color %>; border-radius:4px;"></div>
+      </div>
+      <span style="color:#666;"><%= pct %>%</span>
+      <span style="color:#888;">&mdash; entered <%= distance_of_time_in_words(timer.entered_at, Time.current) %> ago</span>
+    </div>
+
+  <% else %>
+    <span style="color:#555;">
+      In <em><%= issue.status.name %></em> for <strong><%= elapsed %></strong> day(s)
+      &nbsp;&bull;&nbsp;<span style="color:#aaa;">No SLA target configured for this status</span>
+    </span>
+  <% end %>
+
+  &nbsp;&bull;&nbsp;
+  <%= link_to 'View SLA Report', snow_sla_report_path, style: 'font-size:0.85em; color:#666;' %>
+</div>
+<% end %>
