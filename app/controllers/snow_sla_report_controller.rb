@@ -5,7 +5,6 @@ class SnowSlaReportController < ApplicationController
     scope = SnowSlaTimer.joins(:issue, :status)
                         .where(issues: { tracker_id: [14, 18] })
 
-    # Filters
     @filter_result  = params[:result]
     @filter_open    = params[:open]
     @filter_tracker = params[:tracker_id].presence
@@ -18,27 +17,30 @@ class SnowSlaReportController < ApplicationController
       scope = scope.where(due_at: nil)
     end
 
-    scope = scope.where(exited_at: nil) if @filter_open == '1'
+    scope = scope.where(exited_at: nil)             if @filter_open == '1'
     scope = scope.where(issues: { tracker_id: @filter_tracker.to_i }) if @filter_tracker
 
-    @timers = scope.includes(:status, :issue)
-                   .order('snow_sla_timers.entered_at DESC')
-                   .page(params[:page]).per_page(50)
+    @limit       = 50
+    @timer_count = scope.count
+    @timer_pages = Redmine::Pagination::Paginator.new(@timer_count, @limit, params[:page])
+    @timers      = scope.includes(:status, :issue)
+                        .order('snow_sla_timers.entered_at DESC')
+                        .limit(@limit)
+                        .offset(@timer_pages.offset)
 
     @account_cf_id = CustomField.find_by(name: 'Account')&.id&.to_s
 
     @summary = {
-      total:      SnowSlaTimer.where(exited_at: nil, issues: { tracker_id: [14, 18] })
-                              .joins(:issue).count,
-      breached:   SnowSlaTimer.joins(:issue).where(exited_at: nil, breached: true, issues: { tracker_id: [14, 18] }).count,
-      due_today:  SnowSlaTimer.joins(:issue)
-                              .where(exited_at: nil, breached: false, issues: { tracker_id: [14, 18] })
-                              .where('due_at BETWEEN ? AND ?', Time.current.beginning_of_day, Time.current.end_of_day)
-                              .count,
-      on_track:   SnowSlaTimer.joins(:issue)
-                              .where(exited_at: nil, breached: false, issues: { tracker_id: [14, 18] })
-                              .where('due_at IS NULL OR due_at > ?', Time.current.end_of_day)
-                              .count
+      total:     SnowSlaTimer.joins(:issue).where(exited_at: nil, issues: { tracker_id: [14, 18] }).count,
+      breached:  SnowSlaTimer.joins(:issue).where(exited_at: nil, breached: true,  issues: { tracker_id: [14, 18] }).count,
+      due_today: SnowSlaTimer.joins(:issue)
+                             .where(exited_at: nil, breached: false, issues: { tracker_id: [14, 18] })
+                             .where('due_at BETWEEN ? AND ?', Time.current.beginning_of_day, Time.current.end_of_day)
+                             .count,
+      on_track:  SnowSlaTimer.joins(:issue)
+                             .where(exited_at: nil, breached: false, issues: { tracker_id: [14, 18] })
+                             .where('due_at IS NULL OR due_at > ?', Time.current.end_of_day)
+                             .count
     }
   end
 end
