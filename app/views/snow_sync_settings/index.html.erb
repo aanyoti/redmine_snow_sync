@@ -85,7 +85,10 @@
     <p>
       <label>Exchange Rate (1 USD =)</label>
       <%= text_field_tag 'settings[zmw_usd_rate]', @settings['zmw_usd_rate'], size: 8 %> ZMW
-      <em class="info">Used to convert between USD and ZMW on imported quotes</em>
+      &nbsp;
+      <button type="button" id="recalc-rate-btn" class="button">&#8635; Recalculate all orders</button>
+      <span id="recalc-rate-status" style="margin-left:8px; font-style:italic;"></span>
+      <br><em class="info">Save the new rate first, then click Recalculate to update NRR/MRR on all existing orders immediately.</em>
     </p>
   </div>
 
@@ -223,6 +226,34 @@ document.getElementById('test-conn-btn').addEventListener('click', function() {
   .catch(function(err) {
     result.style.color = '#c22';
     result.textContent = 'Request failed: ' + err;
+    btn.disabled = false;
+  });
+});
+
+// ── Recalculate exchange rates ────────────────────────────────────────────
+document.getElementById('recalc-rate-btn').addEventListener('click', function() {
+  var btn    = this;
+  var status = document.getElementById('recalc-rate-status');
+  btn.disabled     = true;
+  status.style.color = '#555';
+  status.textContent = 'Recalculating…';
+
+  fetch('<%= snow_sync_recalculate_rates_path %>', {
+    method:  'POST',
+    headers: {
+      'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,
+      'Accept':       'application/json'
+    }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    status.style.color = 'green';
+    status.textContent = 'Done — ' + data.updated + ' order(s) updated at rate ' + data.rate + ' (skipped: ' + data.skipped + ')';
+    btn.disabled = false;
+  })
+  .catch(function(err) {
+    status.style.color = '#c22';
+    status.textContent = 'Failed: ' + err;
     btn.disabled = false;
   });
 });

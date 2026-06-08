@@ -139,18 +139,24 @@ module SnowSync
         author:      author,
         subject:     subject,
         description: description,
+        start_date:  parse_date(raw(rec, 'opened_at')) || Date.today,
         due_date:    parse_date(raw(rec, 'due_date'))
       )
 
       cf_vals = build_cf_values(rec)
 
-      # Set Service Type and Opportunity Type if C2
+      # Set Service Type from classifier (C2 only — service categorisation e.g. M365, VoIP)
       if result && result[:service_type]
         service_type_cf_id = cf('Service Type')
         cf_vals[service_type_cf_id] = result[:service_type] if service_type_cf_id
+      end
 
-        opp_type_cf_id = cf('Opportunity Type')
-        cf_vals[opp_type_cf_id] = result[:service_type] if opp_type_cf_id
+      # Opportunity Type always comes from Salesforce ("New Business", "Renewal", "Upgrade")
+      opp_type_cf_id = cf('Opportunity Type')
+      if opp_type_cf_id
+        order_num   = disp(rec, @cfg['field_order']).to_s.strip
+        sf_opp_type = salesforce_opportunity_type(order_num)
+        cf_vals[opp_type_cf_id] = sf_opp_type if sf_opp_type
       end
 
       # Initialise Services field with this first component
@@ -399,6 +405,19 @@ module SnowSync
 
     def cf(name)
       @cf_map[name] ||= IssueCustomField.find_by(name: name)&.id&.to_s
+    end
+
+    def salesforce_opportunity_type(order_num)
+      return nil if order_num.blank?
+      row = ActiveRecord::Base.connection.select_one(
+        ActiveRecord::Base.sanitize_sql_array(
+          ['SELECT opportunity_type FROM salesforce_orders WHERE order_number = ? LIMIT 1', order_num]
+        )
+      )
+      row&.fetch('opportunity_type', nil).presence
+    rescue => e
+      @log.warn "SnowSync: Salesforce opportunity_type lookup failed for #{order_num}: #{e.message}"
+      nil
     end
   end
 end

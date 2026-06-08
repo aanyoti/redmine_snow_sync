@@ -5,6 +5,8 @@ module SnowSync
                            'VoIP', 'IVR', 'Conference Facilities', 'Cloud PBX',
                            'Hosted PBX', 'UCaaS'],
       'M365'           => ['Microsoft 365', 'M365', 'Office 365', 'MS365',
+                           'Office365', 'MS Office', 'Microsoft Office',
+                           'Enterprise Mobility', 'Microsoft Products',
                            'Teams', 'SharePoint', 'Intune', 'Dynamics', 'Exchange'],
       'Cloud - Azure'  => ['Azure'],
       'Cloud - AWS'    => ['AWS', 'Amazon Web Services'],

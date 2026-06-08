@@ -33,7 +33,7 @@
   <strong style="display:block; margin-bottom:4px; font-size:1em;">&#9200; SLA Status</strong>
 
   <% if timer.nil? %>
-    <span style="color:#888;">No active SLA timer for this status.</span>
+    <span class="sla-muted">No active SLA timer for this status.</span>
 
   <% elsif timer.breached %>
     <span style="color:#c0392b; font-weight:bold;">&#9888; BREACHED</span>
@@ -43,7 +43,7 @@
       &nbsp;(target was <strong><%= target %></strong> day<%= target == 1 ? '' : 's' %>)
     <% end %>
     <% if timer.notified_at %>
-      &nbsp;&bull;&nbsp;<span style="color:#888;">Notified <%= distance_of_time_in_words(timer.notified_at, Time.current) %> ago</span>
+      &nbsp;&bull;&nbsp;<span class="sla-muted">Notified <%= distance_of_time_in_words(timer.notified_at, Time.current) %> ago</span>
     <% end %>
 
   <% elsif target %>
@@ -53,21 +53,21 @@
         &thinsp;/&thinsp;
         <strong><%= target %></strong> day<%= target == 1 ? '' : 's' %>
       </div>
-      <div style="flex:1; min-width:100px; max-width:200px; background:#ddd; border-radius:4px; height:8px; overflow:hidden;">
+      <div class="sla-track" style="flex:1; min-width:100px; max-width:200px; border-radius:4px; height:8px; overflow:hidden;">
         <div style="width:<%= [pct, 100].min %>%; height:100%; background:<%= border_color %>; border-radius:4px;"></div>
       </div>
-      <span style="color:#666;"><%= pct %>%</span>
-      <span style="color:#888;">&mdash; entered <%= distance_of_time_in_words(timer.entered_at, Time.current) %> ago</span>
+      <span class="sla-muted"><%= pct %>%</span>
+      <span class="sla-muted">&mdash; entered <%= distance_of_time_in_words(timer.entered_at, Time.current) %> ago</span>
     </div>
 
   <% else %>
-    <span style="color:#555;">
+    <span class="sla-muted">
       In <em><%= issue.status.name %></em> for <strong><%= elapsed %></strong> day(s)
-      &nbsp;&bull;&nbsp;<span style="color:#aaa;">No SLA target configured for this status</span>
+      &nbsp;&bull;&nbsp;<span class="sla-faint">No SLA target configured for this status</span>
     </span>
   <% end %>
 
   &nbsp;&bull;&nbsp;
-  <%= link_to 'View SLA Report', snow_sla_report_path, style: 'font-size:0.85em; color:#666;' %>
+  <%= link_to 'View SLA Report', snow_sla_report_path, class: 'sla-report-link' %>
 </div>
 <% end %>

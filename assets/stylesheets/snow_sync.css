@@ -1,0 +1,5 @@
+/* SLA panel utility classes — light-mode defaults */
+.sla-muted       { color: #888; }
+.sla-faint       { color: #aaa; }
+.sla-track       { background: #ddd; }
+.sla-report-link { font-size: 0.85em; color: #666; }
