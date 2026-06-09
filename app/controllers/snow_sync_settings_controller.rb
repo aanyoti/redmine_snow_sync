@@ -2,20 +2,31 @@ class SnowSyncSettingsController < ApplicationController
   before_action :require_admin
 
   def index
-    @settings = Setting.plugin_redmine_snow_sync
-    @records  = SnowSyncRecord.recent
-    @projects = Project.all.sorted
-    @trackers = Tracker.sorted
-    @stats    = {
+    @settings  = Setting.plugin_redmine_snow_sync
+    @records   = SnowSyncRecord.recent
+    @projects  = Project.all.sorted
+    @trackers  = Tracker.sorted
+    @stats     = {
       total:  SnowSyncRecord.count,
       ok:     SnowSyncRecord.where(sync_status: 'ok').count,
       errors: SnowSyncRecord.where(sync_status: 'error').count
     }
+    @sla_days        = SnowSlaTimer.sla_days
+    @mtti_target     = (@settings['mtti_target'].presence || 15).to_i
+    @commercial_statuses = SnowSlaTimer::DEFAULT_SLA_DAYS.keys.reject { |k| k.start_with?('C2') }
+    @c2_statuses         = SnowSlaTimer::DEFAULT_SLA_DAYS.keys.select { |k| k.start_with?('C2') }
   end
 
   def update
-    cfg = Setting.plugin_redmine_snow_sync
-    Setting.plugin_redmine_snow_sync = cfg.merge(settings_params)
+    cfg  = Setting.plugin_redmine_snow_sync
+    data = settings_params.to_h
+
+    # Merge SLA days sub-hash separately (nested params)
+    if params[:sla_days].present?
+      data['sla_days'] = params[:sla_days].permit!.to_h.transform_values(&:to_i)
+    end
+
+    Setting.plugin_redmine_snow_sync = cfg.merge(data)
     flash[:notice] = l(:notice_successful_update)
     redirect_to snow_sync_settings_path
   end
@@ -106,7 +117,8 @@ class SnowSyncSettingsController < ApplicationController
       :target_project_id, :target_tracker_id,
       :assignment_groups, :poll_states, :poll_delivery_stage,
       :field_account, :field_order, :field_service, :days_back,
-      :zmw_usd_rate, :webhook_token, :opportunity_tracker_map, :teams_webhook_url, :teams_test_email
+      :zmw_usd_rate, :webhook_token, :opportunity_tracker_map, :teams_webhook_url, :teams_test_email,
+      :mtti_target
     )
   end
 end

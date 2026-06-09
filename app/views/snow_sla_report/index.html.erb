@@ -36,7 +36,7 @@
       <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">
         <% @mtti_breakdown.each do |entry| %>
           <%
-            target = SnowSlaTimer::SLA_DAYS[entry[:status_name]]
+            target = SnowSlaTimer.sla_days[entry[:status_name]]
             over   = target && entry[:mean_days] > target
             chip_color = over ? '#fdf0ef' : '#f0faf4'
             text_color = over ? '#c0392b' : '#27ae60'
@@ -95,7 +95,7 @@
     <% @timers.each do |timer| %>
       <%
         elapsed = ((Time.current - timer.entered_at) / 1.day).round(1)
-        target  = SnowSlaTimer::SLA_DAYS[timer.status.name]
+        target  = SnowSlaTimer.sla_days[timer.status.name]
         pct     = (target && elapsed) ? (elapsed.to_f / target * 100).round : nil
         breached_now = timer.breached || (target && timer.exited_at.nil? && elapsed.to_f > target)
 

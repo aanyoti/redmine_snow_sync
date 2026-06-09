@@ -2,26 +2,35 @@ class SnowSlaTimer < ActiveRecord::Base
   belongs_to :issue
   belongs_to :status, class_name: 'IssueStatus'
 
-  # SLA targets in calendar days per status name.
-  SLA_DAYS = {
-    # Commercial Orders
-    'Service Request Review'   => 2,
-    'Service Scheduling'       => 1,
-    'Contractor-Assignment'    => 3,
-    'Purchase-Requisition'     => 5,
-    'Build Approval'           => 2,
-    'Fiber Build'              => 14,
-    'Pending Approval Project' => 3,
-    'Handover Project'         => 3,
-    'Requires Sign-off Project'=> 2,
-    # C2
-    'C2 - Service Request Review'      => 2,
-    'C2 - Technical Assessment'        => 3,
-    'C2 - Provisioning'                => 5,
-    'C2 - Configuration & Testing'     => 3,
-    'C2 - UAT'                         => 2,
-    'C2 - Handover'                    => 2,
+  # Default SLA targets — overridden by Admin → ServiceNow Sync settings.
+  DEFAULT_SLA_DAYS = {
+    'Service Request Review'        => 2,
+    'Service Scheduling'            => 1,
+    'Contractor-Assignment'         => 3,
+    'Purchase-Requisition'          => 5,
+    'Build Approval'                => 2,
+    'Fiber Build'                   => 14,
+    'Pending Approval Project'      => 3,
+    'Handover Project'              => 3,
+    'Requires Sign-off Project'     => 2,
+    'C2 - Service Request Review'   => 2,
+    'C2 - Technical Assessment'     => 3,
+    'C2 - Provisioning'             => 5,
+    'C2 - Configuration & Testing'  => 3,
+    'C2 - UAT'                      => 2,
+    'C2 - Handover'                 => 2,
   }.freeze
+
+  def self.sla_days
+    stored = Setting.plugin_redmine_snow_sync['sla_days']
+    return DEFAULT_SLA_DAYS if stored.blank?
+    DEFAULT_SLA_DAYS.keys.index_with { |k| stored[k].present? ? stored[k].to_i : DEFAULT_SLA_DAYS[k] }
+  end
+
+  # Convenience alias used elsewhere in the codebase
+  def self.SLA_DAYS
+    sla_days
+  end
 
   def self.on_status_change(issue, old_status_id)
     return if issue.tracker_id.nil?
@@ -34,7 +43,7 @@ class SnowSlaTimer < ActiveRecord::Base
 
     # Open a new timer for the current status
     status     = issue.status
-    sla_days   = SLA_DAYS[status.name]
+    sla_days   = self.sla_days[status.name]
     due_at     = sla_days ? sla_days.days.from_now : nil
 
     create!(
@@ -88,7 +97,7 @@ class SnowSlaTimer < ActiveRecord::Base
   end
 
   def self.target_days(issue)
-    SLA_DAYS[issue.status.name]
+    sla_days[issue.status.name]
   end
 
   # ── MTTI helpers ──────────────────────────────────────────────────────────

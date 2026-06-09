@@ -7,7 +7,7 @@
   # Current status SLA (for the live breach indicator)
   timer   = SnowSlaTimer.where(issue_id: issue.id, status_id: issue.status_id, exited_at: nil)
                         .order(:entered_at).last
-  target  = SnowSlaTimer::SLA_DAYS[issue.status.name]
+  target  = SnowSlaTimer.sla_days[issue.status.name]
   elapsed = timer ? ((Time.current - timer.entered_at) / 1.day).round(1) : nil
   pct     = (target && elapsed) ? (elapsed.to_f / target * 100).round : nil
 
@@ -76,7 +76,7 @@
       <tbody>
         <% timeline.each do |entry| %>
           <%
-            row_target = SnowSlaTimer::SLA_DAYS[entry[:status_name]]
+            row_target = SnowSlaTimer.sla_days[entry[:status_name]]
             over = !entry[:is_hold] && row_target && entry[:total_days] > row_target
             row_color = entry[:is_hold] ? 'var(--text-faint, #aaa)' : (over ? '#c0392b' : 'inherit')
           %>

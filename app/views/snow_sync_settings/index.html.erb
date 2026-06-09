@@ -145,6 +145,71 @@
     </p>
   </div>
 
+  <%# ── SLA Targets ──────────────────────────────────────────────────── %>
+  <div class="box tabular">
+    <h3>SLA Targets &amp; MTTI Goal</h3>
+    <p style="color:#666; font-size:0.9em; margin-bottom:12px;">
+      Set the target days for each status. The running total shows how your targets add up against the MTTI goal.
+      Hold statuses are excluded — they pause the clock automatically.
+    </p>
+
+    <p>
+      <label>MTTI Goal (days)</label>
+      <%= text_field_tag 'settings[mtti_target]', @mtti_target, size: 4, id: 'mtti_target' %>
+      <em class="info">Overall installation target — used as the reference line in reports</em>
+    </p>
+
+    <div style="display:flex; gap:32px; flex-wrap:wrap; margin-top:8px;">
+
+      <%# Commercial Orders %>
+      <div style="flex:1; min-width:280px;">
+        <h4 style="margin-bottom:8px;">Commercial Orders
+          &nbsp;<span id="commercial-total-badge" style="font-size:0.82em; padding:2px 8px; border-radius:10px; font-weight:bold;"></span>
+        </h4>
+        <table style="width:100%; border-collapse:collapse; font-size:0.9em;">
+          <% @commercial_statuses.each do |status_name| %>
+            <tr>
+              <td style="padding:4px 6px;"><%= status_name %></td>
+              <td style="padding:4px 6px; width:70px;">
+                <%= number_field_tag "sla_days[#{status_name}]",
+                      @sla_days[status_name],
+                      min: 0, max: 999, step: 1,
+                      size: 4,
+                      class: 'sla-day-input commercial-day',
+                      style: 'width:56px; text-align:right;' %>
+                <span style="color:#888; font-size:0.85em;">d</span>
+              </td>
+            </tr>
+          <% end %>
+        </table>
+      </div>
+
+      <%# C2 %>
+      <div style="flex:1; min-width:280px;">
+        <h4 style="margin-bottom:8px;">C2
+          &nbsp;<span id="c2-total-badge" style="font-size:0.82em; padding:2px 8px; border-radius:10px; font-weight:bold;"></span>
+        </h4>
+        <table style="width:100%; border-collapse:collapse; font-size:0.9em;">
+          <% @c2_statuses.each do |status_name| %>
+            <tr>
+              <td style="padding:4px 6px;"><%= status_name %></td>
+              <td style="padding:4px 6px; width:70px;">
+                <%= number_field_tag "sla_days[#{status_name}]",
+                      @sla_days[status_name],
+                      min: 0, max: 999, step: 1,
+                      size: 4,
+                      class: 'sla-day-input c2-day',
+                      style: 'width:56px; text-align:right;' %>
+                <span style="color:#888; font-size:0.85em;">d</span>
+              </td>
+            </tr>
+          <% end %>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
   <p><%= submit_tag 'Save Settings' %></p>
 <% end %>
 
@@ -229,6 +294,33 @@ document.getElementById('test-conn-btn').addEventListener('click', function() {
     btn.disabled = false;
   });
 });
+
+// ── SLA target running totals ─────────────────────────────────────────────
+function updateSlaTotals() {
+  var goal = parseInt(document.getElementById('mtti_target').value) || 15;
+
+  function sumAndBadge(selector, badgeId) {
+    var total = 0;
+    document.querySelectorAll(selector).forEach(function(el) {
+      total += parseInt(el.value) || 0;
+    });
+    var badge = document.getElementById(badgeId);
+    var over  = total > goal;
+    badge.textContent  = total + 'd / ' + goal + 'd target';
+    badge.style.background  = over ? '#fdf0ef' : '#f0faf4';
+    badge.style.color       = over ? '#c0392b' : '#27ae60';
+    badge.style.border      = '1px solid ' + (over ? '#e5b4b0' : '#b4dfc4');
+  }
+
+  sumAndBadge('.commercial-day', 'commercial-total-badge');
+  sumAndBadge('.c2-day',         'c2-total-badge');
+}
+
+document.querySelectorAll('.sla-day-input').forEach(function(el) {
+  el.addEventListener('input', updateSlaTotals);
+});
+document.getElementById('mtti_target').addEventListener('input', updateSlaTotals);
+updateSlaTotals();
 
 // ── Recalculate exchange rates ────────────────────────────────────────────
 document.getElementById('recalc-rate-btn').addEventListener('click', function() {
