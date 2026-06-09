@@ -154,6 +154,43 @@ class SnowSlaTimer < ActiveRecord::Base
     (completed_times.sum / completed_times.size).round(1)
   end
 
+  # Monthly summary: last 6 months, one row per month, ordered newest first.
+  # Each row: { month (Date), order_count, avg_active_days, completed_count, breached_count }
+  def self.monthly_summary(issues)
+    return [] if issues.empty?
+
+    hold_ids   = on_hold_ids
+    closed_ids = IssueStatus.where("name LIKE 'Closed%'").pluck(:id)
+    issue_ids  = issues.map(&:id)
+
+    # Group issues by start month (start_date falls back to created_on)
+    by_month = issues.group_by { |i| (i.start_date || i.created_on.to_date).beginning_of_month }
+
+    cutoff = 6.months.ago.beginning_of_month
+    by_month.select { |m, _| m >= cutoff }
+            .sort_by { |m, _| -m.to_time.to_i }
+            .map do |month, month_issues|
+      month_issue_ids = month_issues.map(&:id)
+      timers = where(issue_id: month_issue_ids).where.not(status_id: hold_ids)
+
+      active_days_list = month_issues.filter_map do |issue|
+        issue_timers = timers.select { |t| t.issue_id == issue.id }
+        next if issue_timers.empty?
+        issue_timers.sum { |t| ((t.exited_at || Time.current) - t.entered_at) / 1.day.to_f }
+      end
+
+      avg = active_days_list.empty? ? nil : (active_days_list.sum / active_days_list.size).round(1)
+
+      {
+        month:           month,
+        order_count:     month_issues.size,
+        avg_active_days: avg,
+        completed_count: month_issues.count { |i| closed_ids.include?(i.status_id) },
+        breached_count:  where(issue_id: month_issue_ids, breached: true).count
+      }
+    end
+  end
+
   # Per-status mean days across a collection of issues (for MTTI breakdown report).
   def self.mtti_by_status(issues)
     hold_ids   = on_hold_ids

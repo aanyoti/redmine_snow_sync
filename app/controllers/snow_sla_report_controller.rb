@@ -32,8 +32,10 @@ class SnowSlaReportController < ApplicationController
 
     # MTTI — all tracker 14/18 issues (unfiltered, for overall stats)
     all_issues      = Issue.where(tracker_id: [14, 18]).to_a
+    @mtti_target    = (Setting.plugin_redmine_snow_sync['mtti_target'].presence || 15).to_i
     @mtti           = SnowSlaTimer.mtti(all_issues)
     @mtti_breakdown = SnowSlaTimer.mtti_by_status(all_issues)
+    @monthly_mtti   = SnowSlaTimer.monthly_summary(all_issues)
 
     @summary = {
       total:     SnowSlaTimer.joins(:issue).where(exited_at: nil, issues: { tracker_id: [14, 18] }).count,
