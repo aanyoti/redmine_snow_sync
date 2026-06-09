@@ -1,0 +1,337 @@
+<%
+  fmt = ->(n) { number_with_delimiter(n.to_f.round(0)) }
+  cf_ids = { mrr_zmw: 83, nrr_zmw: 82, mrr_usd: 85, nrr_usd: 84 }
+  sum_cf = ->(issues, cf_id) {
+    issues.sum { |i|
+      CustomValue.find_by(customized_type: 'Issue', customized_id: i.id, custom_field_id: cf_id)&.value.to_s.gsub(/[^0-9.]/, '').to_f
+    }.round(2)
+  }
+%>
+
+<h2>&#127919; Monthly Target</h2>
+
+<%# ── Month selector ──────────────────────────────────────────────────────── %>
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+  <%
+    prev_d = Date.new(@year, @month, 1) << 1
+    next_d = Date.new(@year, @month, 1) >> 1
+  %>
+  <%= link_to '‹', snow_monthly_target_path(year: prev_d.year, month: prev_d.month),
+        style: 'font-size:1.4em; text-decoration:none; padding:0 6px;' %>
+
+  <%= form_tag snow_monthly_target_path, method: :get, style: 'display:inline-flex; gap:6px; align-items:center;' do %>
+    <%= select_tag :month, options_for_select(Date::MONTHNAMES.compact.each_with_index.map { |n,i| [n, i+1] }, @month),
+          style: 'padding:3px 6px;', onchange: 'this.form.submit()' %>
+    <%= select_tag :year, options_for_select((Date.today.year - 3..Date.today.year + 1).to_a.reverse, @year),
+          style: 'padding:3px 6px;', onchange: 'this.form.submit()' %>
+  <% end %>
+
+  <%= link_to '›', snow_monthly_target_path(year: next_d.year, month: next_d.month),
+        style: 'font-size:1.4em; text-decoration:none; padding:0 6px;' %>
+
+  <strong style="font-size:1.15em; margin-left:8px;"><%= @target.month_label %></strong>
+
+  <% if @target.locked? %>
+    <span id="target-lock-badge" style="padding:3px 12px; border-radius:12px; background:#e8f5e9; border:1px solid #4caf50; color:#2e7d32; font-size:0.88em; font-weight:bold;">
+      &#128274; Locked &mdash; <%= @target.target_count %> orders
+    </span>
+    <span class="sla-muted" style="font-size:0.82em;">
+      by <%= @target.locked_by&.name || 'admin' %> on <%= @target.locked_at.strftime('%d %b %Y %H:%M') %>
+    </span>
+    <%= form_tag snow_unlock_monthly_target_path, method: :post, id: 'unlock-form', style: 'display:inline;' do %>
+      <%= hidden_field_tag :year,  @year  %>
+      <%= hidden_field_tag :month, @month %>
+      <%= hidden_field_tag :comment, '', id: 'unlock-comment-field' %>
+      <button type="button" class="button"
+              style="font-size:0.82em; padding:2px 10px; background:#e74c3c; color:#fff; border:none; cursor:pointer; margin-left:6px;"
+              onclick="openTargetModal('unlock', '<%= j @target.month_label %>')">
+        ↩ Unlock
+      </button>
+    <% end %>
+  <% else %>
+    <span class="sla-muted" style="font-size:0.88em;">Not yet locked</span>
+    <%= form_tag snow_lock_monthly_target_path, method: :post, id: 'lock-form', style: 'display:inline;' do %>
+      <%= hidden_field_tag :year,  @year  %>
+      <%= hidden_field_tag :month, @month %>
+      <%= hidden_field_tag :comment, '', id: 'lock-comment-field' %>
+      <button type="button" class="button"
+              style="font-size:0.88em; padding:4px 14px; background:#2980b9; color:#fff; border:none; cursor:pointer;"
+              onclick="openTargetModal('lock', '<%= j @target.month_label %>', <%= @wip_issues.size %>)">
+        &#128274; Lock Target (<%= @wip_issues.size %> orders)
+      </button>
+    <% end %>
+  <% end %>
+</div>
+
+<%# ── Lock/Unlock comment modal ───────────────────────────────────────────── %>
+<div id="target-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9000; align-items:center; justify-content:center;">
+  <div style="background:var(--surface,#1f2229); border:1px solid var(--border,#3a3f52); border-radius:6px; padding:24px 28px; width:420px; max-width:95vw; box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+    <h3 id="modal-title" style="margin:0 0 12px; font-size:1.05em;"></h3>
+    <p id="modal-desc" style="margin:0 0 12px; font-size:0.88em; color:var(--text-muted,#9199aa);"></p>
+    <label style="font-size:0.88em; font-weight:600; display:block; margin-bottom:4px;">
+      Reason / Comment <span style="color:#c0392b;">*</span>
+    </label>
+    <textarea id="modal-comment" rows="4"
+              style="width:100%; box-sizing:border-box; background:var(--input-bg,#2d3340); color:var(--text,#d4d9e8); border:1px solid var(--input-bd,#4a5068); border-radius:4px; padding:6px 8px; font-size:0.9em; resize:vertical;"
+              placeholder="Required — explain why you are locking or unlocking this target…"></textarea>
+    <p id="modal-error" style="display:none; color:#c0392b; font-size:0.82em; margin:4px 0 0;">A comment is required.</p>
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
+      <button type="button" onclick="closeTargetModal()"
+              style="padding:5px 16px; border-radius:4px; border:1px solid var(--border,#3a3f52); background:transparent; color:var(--text,#d4d9e8); cursor:pointer;">
+        Cancel
+      </button>
+      <button type="button" id="modal-confirm-btn" onclick="confirmTargetModal()"
+              style="padding:5px 16px; border-radius:4px; border:none; color:#fff; cursor:pointer;">
+        Confirm
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+var _targetModalAction = null;
+function openTargetModal(action, label, count) {
+  _targetModalAction = action;
+  var isLock = action === 'lock';
+  document.getElementById('modal-title').textContent   = isLock ? '🔒 Lock ' + label + ' Target' : '↩ Unlock ' + label + ' Target';
+  document.getElementById('modal-desc').textContent    = isLock
+    ? 'This will lock the target at ' + count + ' Active WIP orders. This action is recorded.'
+    : 'This will reset the ' + label + ' target. This action is recorded.';
+  document.getElementById('modal-comment').value       = '';
+  document.getElementById('modal-error').style.display = 'none';
+  document.getElementById('modal-confirm-btn').style.background = isLock ? '#2980b9' : '#e74c3c';
+  var overlay = document.getElementById('target-modal-overlay');
+  overlay.style.display = 'flex';
+  setTimeout(function() { document.getElementById('modal-comment').focus(); }, 50);
+}
+function closeTargetModal() {
+  document.getElementById('target-modal-overlay').style.display = 'none';
+  _targetModalAction = null;
+}
+function confirmTargetModal() {
+  var comment = document.getElementById('modal-comment').value.trim();
+  if (!comment) {
+    document.getElementById('modal-error').style.display = 'block';
+    document.getElementById('modal-comment').focus();
+    return;
+  }
+  if (_targetModalAction === 'lock') {
+    document.getElementById('lock-comment-field').value = comment;
+    document.getElementById('lock-form').submit();
+  } else {
+    document.getElementById('unlock-comment-field').value = comment;
+    document.getElementById('unlock-form').submit();
+  }
+}
+document.getElementById('target-modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeTargetModal();
+});
+</script>
+
+<%# ── Active WIP orders table ─────────────────────────────────────────────── %>
+<% section_label = @target.locked? ? "Active WIP Orders in Target" : "Current Active WIP Orders" %>
+<h3 style="margin-bottom:8px;"><%= section_label %> <span class="sla-muted" style="font-size:0.8em; font-weight:normal;">(<%= @wip_issues.size %>)</span></h3>
+
+<% if @wip_issues.any? %>
+  <%= render partial: 'snow_monthly_target/issue_table',
+             locals: { issues: @wip_issues, closed_ids: @closed_ids, account_cf: @account_cf,
+                       awip_set_by: @awip_set_by, cf_ids: cf_ids, show_uplift_col: false } %>
+<% else %>
+  <p class="sla-muted">No Active WIP orders for this month.</p>
+<% end %>
+
+<%# ── Uplift orders ────────────────────────────────────────────────────────── %>
+<% if @uplift_issues.any? %>
+  <h3 style="margin-top:24px; margin-bottom:8px; color:#2980b9;">
+    &#8593; Uplift Orders
+    <span class="sla-muted" style="font-size:0.8em; font-weight:normal; color:inherit;">(delivered after target lock &mdash; <%= @uplift_issues.size %>)</span>
+  </h3>
+  <%= render partial: 'snow_monthly_target/issue_table',
+             locals: { issues: @uplift_issues, closed_ids: @closed_ids, account_cf: @account_cf,
+                       awip_set_by: @awip_set_by, cf_ids: cf_ids, show_uplift_col: false } %>
+<% end %>
+
+<%# ── Summary section ─────────────────────────────────────────────────────── %>
+<div style="margin-top:32px;">
+  <h3 style="margin-bottom:12px;">&#128202; Summary</h3>
+
+  <%# Period toggle %>
+  <div style="display:flex; gap:4px; margin-bottom:12px;">
+    <% [['monthly','Monthly'],['quarterly','Quarterly'],['annual','Annual']].each_with_index do |(key, label), idx| %>
+      <button type="button" id="sum-btn-<%= key %>" onclick="sumSwitch('<%= key %>')"
+              style="padding:3px 12px; border-radius:3px; border:1px solid #2980b9; cursor:pointer; font-size:0.85em;
+                     background:<%= idx == 0 ? '#2980b9' : 'transparent' %>;
+                     color:<%= idx == 0 ? '#fff' : '#2980b9' %>;">
+        <%= label %>
+      </button>
+    <% end %>
+  </div>
+
+  <%
+    # Build monthly summary rows from all locked targets
+    locked = @all_targets.select(&:locked?).sort_by { |t| [-t.year, -t.month] }
+
+    monthly_rows = locked.map do |t|
+      s = t.stats
+      all_iss = Issue.where(tracker_id: [14,18]).to_a
+      on_hold = all_iss.select { |i| @on_hold_ids.include?(i.status_id) }
+      {
+        label:          t.month_label,
+        current:        t.year == @year && t.month == @month,
+        total_count:    @all_issues_count,
+        on_hold_count:  @on_hold_count,
+        wip_count:      t.target_count,
+        target_count:   t.target_count,
+        delivered:      s[:delivered_count],
+        uplift:         s[:uplift_count],
+        achieved_pct:   s[:achieved_pct],
+        target_mrr_usd: t.target_mrr_usd,
+        target_nrr_usd: t.target_nrr_usd,
+        target_mrr_zmw: t.target_mrr_zmw,
+        target_nrr_zmw: t.target_nrr_zmw,
+        del_mrr_usd:    s[:delivered_mrr_usd],
+        del_nrr_usd:    s[:delivered_nrr_usd],
+        del_mrr_zmw:    s[:delivered_mrr_zmw],
+        del_nrr_zmw:    s[:delivered_nrr_zmw],
+        uplift_mrr_usd: s[:uplift_mrr_usd],
+        uplift_nrr_usd: s[:uplift_nrr_usd],
+      }
+    end
+
+    # Quarter aggregation
+    quarterly_rows = monthly_rows.group_by { |r|
+      d = Date.parse("#{r[:label]} 1") rescue Date.today
+      [d.year, (d.month - 1) / 3 + 1]
+    }.sort_by { |k,_| [-k[0], -k[1]] }.map do |(yr, q), rows|
+      {
+        label:          "Q#{q} #{yr}",
+        current:        rows.any? { |r| r[:current] },
+        target_count:   rows.sum { |r| r[:target_count] },
+        delivered:      rows.sum { |r| r[:delivered] },
+        uplift:         rows.sum { |r| r[:uplift] },
+        achieved_pct:   rows.sum { |r| r[:target_count] } > 0 ?
+                          (rows.sum { |r| r[:delivered] }.to_f / rows.sum { |r| r[:target_count] } * 100).round(1) : nil,
+        target_mrr_usd: rows.sum { |r| r[:target_mrr_usd] },
+        target_nrr_usd: rows.sum { |r| r[:target_nrr_usd] },
+        target_mrr_zmw: rows.sum { |r| r[:target_mrr_zmw] },
+        target_nrr_zmw: rows.sum { |r| r[:target_nrr_zmw] },
+        del_mrr_usd:    rows.sum { |r| r[:del_mrr_usd] },
+        del_nrr_usd:    rows.sum { |r| r[:del_nrr_usd] },
+        uplift_mrr_usd: rows.sum { |r| r[:uplift_mrr_usd] },
+        uplift_nrr_usd: rows.sum { |r| r[:uplift_nrr_usd] },
+      }
+    end
+
+    # Annual aggregation
+    annual_rows = monthly_rows.group_by { |r|
+      d = Date.parse("#{r[:label]} 1") rescue Date.today; d.year
+    }.sort_by { |yr, _| -yr }.map do |yr, rows|
+      {
+        label:          yr.to_s,
+        current:        rows.any? { |r| r[:current] },
+        target_count:   rows.sum { |r| r[:target_count] },
+        delivered:      rows.sum { |r| r[:delivered] },
+        uplift:         rows.sum { |r| r[:uplift] },
+        achieved_pct:   rows.sum { |r| r[:target_count] } > 0 ?
+                          (rows.sum { |r| r[:delivered] }.to_f / rows.sum { |r| r[:target_count] } * 100).round(1) : nil,
+        target_mrr_usd: rows.sum { |r| r[:target_mrr_usd] },
+        target_nrr_usd: rows.sum { |r| r[:target_nrr_usd] },
+        target_mrr_zmw: rows.sum { |r| r[:target_mrr_zmw] },
+        target_nrr_zmw: rows.sum { |r| r[:target_nrr_zmw] },
+        del_mrr_usd:    rows.sum { |r| r[:del_mrr_usd] },
+        del_nrr_usd:    rows.sum { |r| r[:del_nrr_usd] },
+        uplift_mrr_usd: rows.sum { |r| r[:uplift_mrr_usd] },
+        uplift_nrr_usd: rows.sum { |r| r[:uplift_nrr_usd] },
+      }
+    end
+  %>
+
+  <% { monthly: monthly_rows, quarterly: quarterly_rows, annual: annual_rows }.each do |period, rows| %>
+    <div id="sum-view-<%= period %>" style="<%= period == :monthly ? '' : 'display:none;' %>overflow-x:auto;">
+      <% if rows.empty? %>
+        <p class="sla-muted">No locked targets yet.</p>
+      <% else %>
+        <table class="list" style="font-size:0.86em; width:100%;">
+          <thead>
+            <tr>
+              <th style="text-align:left;">Period</th>
+              <th style="text-align:right;">Target</th>
+              <th style="text-align:right;">Delivered</th>
+              <th style="text-align:right;">Achieved&nbsp;%</th>
+              <th style="text-align:right;">Uplift</th>
+              <th style="text-align:right;">MRR (USD) Target</th>
+              <th style="text-align:right;">MRR (USD) Del.</th>
+              <th style="text-align:right;">NRR (USD) Target</th>
+              <th style="text-align:right;">NRR (USD) Del.</th>
+              <th style="text-align:right;">MRR (ZMW) Target</th>
+              <th style="text-align:right;">NRR (ZMW) Target</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% rows.each_with_index do |row, i| %>
+              <% ach = row[:achieved_pct]; over = ach && ach < 80 %>
+              <tr class="<%= i.even? ? 'odd' : 'even' %>" style="<%= row[:current] ? 'font-weight:bold;' : '' %>">
+                <td><%= row[:current] ? '▶ '.html_safe : '' %><%= row[:label] %></td>
+                <td style="text-align:right;"><%= row[:target_count] %></td>
+                <td style="text-align:right; color:<%= row[:delivered].to_i > 0 ? '#27ae60' : 'inherit' %>;">
+                  <%= row[:delivered] %>
+                </td>
+                <td style="text-align:right; font-weight:bold; color:<%= over ? '#c0392b' : (ach ? '#27ae60' : 'inherit') %>;">
+                  <%= ach ? "#{ach}%" : '—' %>
+                </td>
+                <td style="text-align:right; color:<%= row[:uplift].to_i > 0 ? '#2980b9' : 'inherit' %>;">
+                  <%= row[:uplift].to_i > 0 ? "+#{row[:uplift]}" : '—' %>
+                </td>
+                <td style="text-align:right;" class="sla-muted">$<%= fmt.(row[:target_mrr_usd]) %></td>
+                <td style="text-align:right; color:<%= row[:del_mrr_usd].to_f > 0 ? '#27ae60' : 'inherit' %>;">
+                  $<%= fmt.(row[:del_mrr_usd]) %>
+                </td>
+                <td style="text-align:right;" class="sla-muted">$<%= fmt.(row[:target_nrr_usd]) %></td>
+                <td style="text-align:right; color:<%= row[:del_nrr_usd].to_f > 0 ? '#27ae60' : 'inherit' %>;">
+                  $<%= fmt.(row[:del_nrr_usd]) %>
+                </td>
+                <td style="text-align:right;" class="sla-muted">K<%= fmt.(row[:target_mrr_zmw]) %></td>
+                <td style="text-align:right;" class="sla-muted">K<%= fmt.(row[:target_nrr_zmw]) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+          <%# Totals footer %>
+          <%
+            tot_target  = rows.sum { |r| r[:target_count] }
+            tot_del     = rows.sum { |r| r[:delivered].to_i }
+            tot_uplift  = rows.sum { |r| r[:uplift].to_i }
+            tot_ach     = tot_target > 0 ? (tot_del.to_f / tot_target * 100).round(1) : nil
+          %>
+          <tfoot>
+            <tr style="font-weight:bold; border-top:2px solid #aaa;">
+              <td>Total</td>
+              <td style="text-align:right;"><%= tot_target %></td>
+              <td style="text-align:right; color:<%= tot_del > 0 ? '#27ae60' : 'inherit' %>;"><%= tot_del %></td>
+              <td style="text-align:right; color:<%= (tot_ach && tot_ach < 80) ? '#c0392b' : '#27ae60' %>;">
+                <%= tot_ach ? "#{tot_ach}%" : '—' %>
+              </td>
+              <td style="text-align:right; color:#2980b9;"><%= tot_uplift > 0 ? "+#{tot_uplift}" : '—' %></td>
+              <td style="text-align:right;">$<%= fmt.(rows.sum { |r| r[:target_mrr_usd] }) %></td>
+              <td style="text-align:right; color:#27ae60;">$<%= fmt.(rows.sum { |r| r[:del_mrr_usd] }) %></td>
+              <td style="text-align:right;">$<%= fmt.(rows.sum { |r| r[:target_nrr_usd] }) %></td>
+              <td style="text-align:right; color:#27ae60;">$<%= fmt.(rows.sum { |r| r[:del_nrr_usd] }) %></td>
+              <td style="text-align:right;">K<%= fmt.(rows.sum { |r| r[:target_mrr_zmw] }) %></td>
+              <td style="text-align:right;">K<%= fmt.(rows.sum { |r| r[:target_nrr_zmw] }) %></td>
+            </tr>
+          </tfoot>
+        </table>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+
+<script>
+function sumSwitch(period) {
+  ['monthly','quarterly','annual'].forEach(function(p) {
+    document.getElementById('sum-view-' + p).style.display = p === period ? '' : 'none';
+    var btn = document.getElementById('sum-btn-' + p);
+    btn.style.background = p === period ? '#2980b9' : 'transparent';
+    btn.style.color      = p === period ? '#fff'    : '#2980b9';
+  });
+}
+</script>

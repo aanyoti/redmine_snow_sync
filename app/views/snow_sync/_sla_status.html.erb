@@ -25,6 +25,53 @@
     end
 %>
 
+<%# ── Active WIP badge (visible to all; toggle only for authorized users) ── %>
+<%
+  awip_cf  = IssueCustomField.find_by(name: 'Active WIP')
+  awip_val = awip_cf ? CustomValue.find_by(customized_type: 'Issue', customized_id: issue.id, custom_field_id: awip_cf.id)&.value.to_s : '0'
+  is_awip  = awip_val == '1'
+  can_wip  = SnowSync::ActiveWipHelper.authorized?(User.current)
+%>
+<div id="snow-awip-row" style="margin-top:10px; display:flex; align-items:center; gap:10px;">
+  <% if is_awip %>
+    <span style="display:inline-block; padding:3px 12px; border-radius:12px; background:#e8f5e9; border:1px solid #4caf50; color:#2e7d32; font-weight:bold; font-size:0.88em;">
+      &#10003; Active WIP
+    </span>
+    <% if can_wip %>
+      <a href="#" onclick="snowToggleAwip(<%= issue.id %>, 0); return false;"
+         style="font-size:0.82em; color:#c0392b; text-decoration:none;">Remove</a>
+    <% end %>
+  <% else %>
+    <% if can_wip %>
+      <a href="#" onclick="snowToggleAwip(<%= issue.id %>, 1); return false;"
+         style="display:inline-block; padding:3px 12px; border-radius:12px; border:1px dashed #aaa; color:#888; font-size:0.88em; text-decoration:none;">
+        + Set Active WIP
+      </a>
+    <% else %>
+      <span style="display:inline-block; padding:3px 12px; border-radius:12px; border:1px dashed #aaa; color:#888; font-size:0.88em;">
+        Not Active WIP
+      </span>
+    <% end %>
+  <% end %>
+  <span id="snow-awip-msg" style="font-size:0.82em; color:#888;"></span>
+</div>
+<% if can_wip %>
+  <script>
+  function snowToggleAwip(issueId, val) {
+    document.getElementById('snow-awip-msg').textContent = 'Saving…';
+    fetch('<%= snow_set_active_wip_path %>', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json',
+                 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content },
+      body: JSON.stringify({ issue_id: issueId, value: val })
+    })
+    .then(r => r.json())
+    .then(d => { if (d.status === 'ok') location.reload(); else document.getElementById('snow-awip-msg').textContent = d.error || 'Error'; })
+    .catch(() => { document.getElementById('snow-awip-msg').textContent = 'Error'; });
+  }
+  </script>
+<% end %>
+
 <div id="snow-sla-panel" style="margin-top:14px; padding:10px 14px; border-left:4px solid <%= border_color %>; border-radius:3px; font-size:0.9em;">
 
   <%# ── Header row ──────────────────────────────────────────────────────── %>
