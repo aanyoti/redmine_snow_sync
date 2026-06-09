@@ -48,6 +48,7 @@ Redmine::Hook.add_listener(SnowSync::Hooks)
 # Wire up controller and model patches
 Rails.configuration.to_prepare do
   IssuesController.prepend SnowSync::IssueControllerPatch
+  VersionsController.prepend SnowSync::VersionsControllerPatch
 
   # Patch AdvancedChecklist to auto-assign checklist items to the issue's assignee
   if defined?(AdvancedChecklist)
