@@ -3,3 +3,13 @@
 .sla-faint       { color: #aaa; }
 .sla-track       { background: #ddd; }
 .sla-report-link { font-size: 0.85em; color: #666; }
+
+/* MTTI panel — light-mode defaults */
+#snow-mtti-panel              { background: #fafafa; border: 1px solid #ddd; }
+.mtti-label                   { color: #666; }
+.mtti-chip-name               { color: #555; }
+.mtti-chip                    { display: inline-block; }
+.mtti-chip-ok                 { background: #f0faf4; border: 1px solid #b4dfc4; }
+.mtti-chip-over               { background: #fdf0ef; border: 1px solid #e5b4b0; }
+.mtti-val-ok                  { color: #27ae60; }
+.mtti-val-over                { color: #c0392b; }
