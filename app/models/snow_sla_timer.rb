@@ -90,4 +90,72 @@ class SnowSlaTimer < ActiveRecord::Base
   def self.target_days(issue)
     SLA_DAYS[issue.status.name]
   end
+
+  # ── MTTI helpers ──────────────────────────────────────────────────────────
+
+  def self.on_hold_ids
+    @on_hold_ids ||= IssueStatus.where("name LIKE 'On Hold%'").pluck(:id)
+  end
+
+  # Returns timeline array ordered chronologically, grouped by status.
+  # Each entry: { status_id, status_name, total_days, visit_count, is_hold, still_open }
+  def self.timeline(issue)
+    timers = where(issue_id: issue.id).includes(:status).order(:entered_at)
+    return [] if timers.empty?
+
+    hold_ids = on_hold_ids
+    grouped  = timers.group_by(&:status_id)
+
+    entries = grouped.map do |status_id, ts|
+      total_secs = ts.sum { |t| (t.exited_at || Time.current) - t.entered_at }
+      {
+        status_id:   status_id,
+        status_name: ts.first.status.name,
+        total_days:  (total_secs / 1.day.to_f).round(2),
+        visit_count: ts.count,
+        is_hold:     hold_ids.include?(status_id),
+        still_open:  ts.any? { |t| t.exited_at.nil? },
+        first_entered: ts.map(&:entered_at).min
+      }
+    end
+
+    entries.sort_by { |e| e[:first_entered] }
+  end
+
+  # Total active days for an issue, excluding all On Hold time.
+  def self.active_days(issue)
+    where(issue_id: issue.id)
+      .where.not(status_id: on_hold_ids)
+      .sum { |t| ((t.exited_at || Time.current) - t.entered_at) / 1.day.to_f }
+  end
+
+  # Mean Time To Install across a collection of issues.
+  # Only counts issues that have reached a closed status and have timer data.
+  def self.mtti(issues)
+    closed_ids = IssueStatus.where("name LIKE 'Closed%'").pluck(:id)
+    hold_ids   = on_hold_ids
+
+    completed_times = issues.select { |i| closed_ids.include?(i.status_id) }.filter_map do |issue|
+      timers = where(issue_id: issue.id).where.not(status_id: hold_ids)
+      next if timers.empty?
+      timers.sum { |t| ((t.exited_at || Time.current) - t.entered_at) / 1.day.to_f }
+    end.reject { |d| d.zero? }
+
+    return nil if completed_times.empty?
+    (completed_times.sum / completed_times.size).round(1)
+  end
+
+  # Per-status mean days across a collection of issues (for MTTI breakdown report).
+  def self.mtti_by_status(issues)
+    hold_ids   = on_hold_ids
+    issue_ids  = issues.map(&:id)
+    timers     = where(issue_id: issue_ids).where.not(status_id: hold_ids).includes(:status)
+
+    by_status = timers.group_by(&:status_id)
+    by_status.filter_map do |status_id, ts|
+      days_list = ts.map { |t| ((t.exited_at || Time.current) - t.entered_at) / 1.day.to_f }
+      mean = (days_list.sum / days_list.size).round(2)
+      { status_name: ts.first.status.name, mean_days: mean, sample_size: days_list.size }
+    end.sort_by { |e| -e[:mean_days] }
+  end
 end

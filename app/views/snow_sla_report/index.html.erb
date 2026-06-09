@@ -16,6 +16,42 @@
   <% end %>
 </div>
 
+<%# ── MTTI summary ────────────────────────────────────────────────────── %>
+<div style="margin-bottom:20px; padding:14px 18px; border:1px solid #ddd; border-radius:4px; background:#fafafa;">
+  <div style="display:flex; align-items:baseline; gap:20px; flex-wrap:wrap;">
+    <div>
+      <strong style="font-size:1.05em;">&#8987; Mean Time to Install (MTTI)</strong>
+      <% if @mtti %>
+        <span style="font-size:1.6em; font-weight:bold; color:#2980b9; margin-left:12px;"><%= @mtti %> days</span>
+        <span style="color:#888; font-size:0.85em; margin-left:6px;">active time, excl. hold — completed orders only</span>
+      <% else %>
+        <span style="color:#888; font-size:0.9em; margin-left:12px;">No completed orders yet</span>
+      <% end %>
+    </div>
+  </div>
+
+  <% if @mtti_breakdown.any? %>
+    <div style="margin-top:12px;">
+      <strong style="font-size:0.85em; color:#666;">Avg. days per status (all orders):</strong>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">
+        <% @mtti_breakdown.each do |entry| %>
+          <%
+            target = SnowSlaTimer::SLA_DAYS[entry[:status_name]]
+            over   = target && entry[:mean_days] > target
+            chip_color = over ? '#fdf0ef' : '#f0faf4'
+            text_color = over ? '#c0392b' : '#27ae60'
+          %>
+          <span style="padding:3px 10px; border-radius:12px; font-size:0.82em; background:<%= chip_color %>; border:1px solid <%= over ? '#e5b4b0' : '#b4dfc4' %>;">
+            <strong style="color:<%= text_color %>;"><%= entry[:mean_days] %>d</strong>
+            &nbsp;<span style="color:#555;"><%= entry[:status_name] %></span>
+            <span style="color:#aaa;">(n=<%= entry[:sample_size] %>)</span>
+          </span>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
 <%# ── Filters ─────────────────────────────────────────────────────────── %>
 <%= form_tag snow_sla_report_path, method: :get, style: 'margin-bottom:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;' do %>
   <%= label_tag :result, 'Show:' %>

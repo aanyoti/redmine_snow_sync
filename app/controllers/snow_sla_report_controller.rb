@@ -30,6 +30,11 @@ class SnowSlaReportController < ApplicationController
 
     @account_cf_id = CustomField.find_by(name: 'Account')&.id&.to_s
 
+    # MTTI — all tracker 14/18 issues (unfiltered, for overall stats)
+    all_issues      = Issue.where(tracker_id: [14, 18]).to_a
+    @mtti           = SnowSlaTimer.mtti(all_issues)
+    @mtti_breakdown = SnowSlaTimer.mtti_by_status(all_issues)
+
     @summary = {
       total:     SnowSlaTimer.joins(:issue).where(exited_at: nil, issues: { tracker_id: [14, 18] }).count,
       breached:  SnowSlaTimer.joins(:issue).where(exited_at: nil, breached: true,  issues: { tracker_id: [14, 18] }).count,

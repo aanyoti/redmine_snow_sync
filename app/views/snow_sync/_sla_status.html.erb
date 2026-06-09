@@ -1,10 +1,17 @@
 <% if [14, 18].include?(issue.tracker_id) %>
 <%
+  timeline    = SnowSlaTimer.timeline(issue)
+  active_days = timeline.reject { |e| e[:is_hold] }.sum { |e| e[:total_days] }
+  hold_days   = timeline.select { |e| e[:is_hold] }.sum { |e| e[:total_days] }
+
+  # Current status SLA (for the live breach indicator)
   timer   = SnowSlaTimer.where(issue_id: issue.id, status_id: issue.status_id, exited_at: nil)
                         .order(:entered_at).last
   target  = SnowSlaTimer::SLA_DAYS[issue.status.name]
   elapsed = timer ? ((Time.current - timer.entered_at) / 1.day).round(1) : nil
   pct     = (target && elapsed) ? (elapsed.to_f / target * 100).round : nil
+
+  closed_status = IssueStatus.where("name LIKE 'Closed%'").pluck(:id).include?(issue.status_id)
 
   border_color =
     if timer.nil?
@@ -16,58 +23,100 @@
     else
       '#27ae60'
     end
-
-  bg_color =
-    if timer.nil?
-      '#f9f9f9'
-    elsif timer.breached || (target && elapsed.to_f > target)
-      '#fdf0ef'
-    elsif pct && pct >= 75
-      '#fef9f0'
-    else
-      '#f0faf4'
-    end
 %>
 
-<div id="snow-sla-panel" style="margin-top:14px; padding:10px 14px; border-left:4px solid <%= border_color %>; background:<%= bg_color %>; border-radius:3px; font-size:0.9em;">
-  <strong style="display:block; margin-bottom:4px; font-size:1em;">&#9200; SLA Status</strong>
+<div id="snow-sla-panel" style="margin-top:14px; padding:10px 14px; border-left:4px solid <%= border_color %>; border-radius:3px; font-size:0.9em;">
 
-  <% if timer.nil? %>
-    <span class="sla-muted">No active SLA timer for this status.</span>
+  <%# ── Header row ──────────────────────────────────────────────────────── %>
+  <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:8px; flex-wrap:wrap;">
+    <strong style="font-size:1em;">&#9200; MTTI Status</strong>
+    <span class="sla-muted" style="font-size:0.88em;">
+      Active time: <strong style="color:<%= border_color %>;"><%= active_days.round(1) %> days</strong>
+      <% if hold_days > 0 %>
+        &nbsp;&bull;&nbsp;On hold: <strong><%= hold_days.round(1) %> days</strong>
+      <% end %>
+      <% if closed_status %>
+        &nbsp;&bull;&nbsp;<span style="color:#27ae60; font-weight:bold;">&#10003; Installed in <%= active_days.round(1) %> days</span>
+      <% end %>
+    </span>
+    <span style="margin-left:auto;">
+      <%= link_to 'SLA Report', snow_sla_report_path, class: 'sla-report-link' %>
+    </span>
+  </div>
 
-  <% elsif timer.breached %>
-    <span style="color:#c0392b; font-weight:bold;">&#9888; BREACHED</span>
-    &mdash;
-    in <em><%= issue.status.name %></em> for <strong><%= elapsed %></strong> day(s)
-    <% if target %>
-      &nbsp;(target was <strong><%= target %></strong> day<%= target == 1 ? '' : 's' %>)
-    <% end %>
-    <% if timer.notified_at %>
-      &nbsp;&bull;&nbsp;<span class="sla-muted">Notified <%= distance_of_time_in_words(timer.notified_at, Time.current) %> ago</span>
-    <% end %>
-
-  <% elsif target %>
-    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-      <div>
-        <span style="color:<%= border_color %>; font-weight:bold;"><%= elapsed %></span>
-        &thinsp;/&thinsp;
-        <strong><%= target %></strong> day<%= target == 1 ? '' : 's' %>
-      </div>
-      <div class="sla-track" style="flex:1; min-width:100px; max-width:200px; border-radius:4px; height:8px; overflow:hidden;">
+  <%# ── Current status SLA bar (only for open, SLA-tracked statuses) ────── %>
+  <% if !closed_status && timer && target %>
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; padding:6px 8px; border-radius:3px; background:rgba(128,128,128,0.07);">
+      <span style="font-size:0.85em; color:<%= border_color %>;">
+        <strong>Current:</strong> <%= issue.status.name %>
+        &nbsp;&mdash;&nbsp;
+        <span style="font-weight:bold; color:<%= border_color %>;"><%= elapsed %></span> / <%= target %> day<%= target == 1 ? '' : 's' %>
+        <% if timer.breached %>
+          &nbsp;<span style="color:#c0392b; font-weight:bold;">&#9888; BREACHED</span>
+        <% end %>
+      </span>
+      <div class="sla-track" style="flex:1; min-width:80px; max-width:160px; border-radius:4px; height:6px; overflow:hidden;">
         <div style="width:<%= [pct, 100].min %>%; height:100%; background:<%= border_color %>; border-radius:4px;"></div>
       </div>
-      <span class="sla-muted"><%= pct %>%</span>
-      <span class="sla-muted">&mdash; entered <%= distance_of_time_in_words(timer.entered_at, Time.current) %> ago</span>
+      <span class="sla-muted" style="font-size:0.82em;"><%= pct %>%</span>
     </div>
-
-  <% else %>
-    <span class="sla-muted">
-      In <em><%= issue.status.name %></em> for <strong><%= elapsed %></strong> day(s)
-      &nbsp;&bull;&nbsp;<span class="sla-faint">No SLA target configured for this status</span>
-    </span>
   <% end %>
 
-  &nbsp;&bull;&nbsp;
-  <%= link_to 'View SLA Report', snow_sla_report_path, class: 'sla-report-link' %>
+  <%# ── Timeline table ──────────────────────────────────────────────────── %>
+  <% if timeline.any? %>
+    <table style="width:100%; border-collapse:collapse; font-size:0.85em;">
+      <thead>
+        <tr style="border-bottom:1px solid rgba(128,128,128,0.2);">
+          <th style="text-align:left; padding:3px 6px; font-weight:600;" class="sla-muted">Status</th>
+          <th style="text-align:right; padding:3px 6px; font-weight:600;" class="sla-muted">Days</th>
+          <th style="text-align:right; padding:3px 6px; font-weight:600;" class="sla-muted">SLA Target</th>
+          <th style="text-align:right; padding:3px 6px; font-weight:600;" class="sla-muted">Visits</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% timeline.each do |entry| %>
+          <%
+            row_target = SnowSlaTimer::SLA_DAYS[entry[:status_name]]
+            over = !entry[:is_hold] && row_target && entry[:total_days] > row_target
+            row_color = entry[:is_hold] ? 'var(--text-faint, #aaa)' : (over ? '#c0392b' : 'inherit')
+          %>
+          <tr style="border-bottom:1px solid rgba(128,128,128,0.08);">
+            <td style="padding:3px 6px; color:<%= row_color %>;">
+              <% if entry[:is_hold] %><em><% end %>
+              <%= entry[:status_name] %>
+              <% if entry[:still_open] %>&nbsp;<span style="font-size:0.8em; color:#27ae60;">&#9679; active</span><% end %>
+              <% if entry[:is_hold] %></em><% end %>
+            </td>
+            <td style="text-align:right; padding:3px 6px; font-weight:<%= entry[:is_hold] ? 'normal' : 'bold' %>; color:<%= row_color %>;">
+              <%= entry[:total_days] %>
+            </td>
+            <td style="text-align:right; padding:3px 6px;" class="sla-muted">
+              <%= row_target ? "#{row_target}d" : '—' %>
+            </td>
+            <td style="text-align:right; padding:3px 6px;" class="sla-muted">
+              <%= entry[:visit_count] > 1 ? "×#{entry[:visit_count]}" : '' %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot>
+        <tr style="border-top:2px solid rgba(128,128,128,0.3);">
+          <td style="padding:4px 6px; font-weight:bold;">Active total <span class="sla-faint">(excl. hold)</span></td>
+          <td style="text-align:right; padding:4px 6px; font-weight:bold; color:<%= border_color %>;"><%= active_days.round(1) %></td>
+          <td colspan="2"></td>
+        </tr>
+        <% if hold_days > 0 %>
+          <tr>
+            <td style="padding:2px 6px;" class="sla-muted"><em>On hold total</em></td>
+            <td style="text-align:right; padding:2px 6px;" class="sla-muted"><em><%= hold_days.round(1) %></em></td>
+            <td colspan="2"></td>
+          </tr>
+        <% end %>
+      </tfoot>
+    </table>
+  <% else %>
+    <span class="sla-muted">No timer data yet — timeline will appear once the issue moves through statuses.</span>
+  <% end %>
+
 </div>
 <% end %>
