@@ -23,7 +23,9 @@ Redmine::Plugin.register :redmine_snow_sync do
     'webhook_token'           => '',
     'opportunity_tracker_map' => 'New Business:14,Renewal:14,Upgrade:14,Change:14,Downgrade:14',
     'teams_webhook_url'       => '',
-    'teams_test_email'        => ''
+    'teams_test_email'        => '',
+    'active_wip_groups'       => 'Service Delivery,Projects',
+    'librenms_token'          => 'e509511c70df0659cea1f1feccb8b0ac'
   }, partial: 'settings/snow_sync_settings'
 
   menu :admin_menu, :snow_sync,
@@ -33,9 +35,15 @@ Redmine::Plugin.register :redmine_snow_sync do
   menu :admin_menu, :snow_sla_report,
        { controller: 'snow_sla_report', action: 'index' },
        caption: 'SLA Report'
+
+  menu :admin_menu, :snow_monthly_target,
+       { controller: 'snow_monthly_target', action: 'index' },
+       caption: 'Monthly Target'
 end
 
 Dir[File.expand_path('lib/snow_sync/*.rb', __dir__)].sort.each { |f| require f }
+
+Redmine::Hook.add_listener(SnowSync::Hooks)
 
 # Wire up controller and model patches
 Rails.configuration.to_prepare do
@@ -54,6 +62,7 @@ ActiveSupport.on_load(:active_record) do
     after_save :record_sla_status_change
     validate   :snow_validate_pr_transition
     validate   :snow_validate_build_approval_sendback
+    validate   :snow_validate_service_provisioning
 
     private
 
@@ -102,6 +111,33 @@ ActiveSupport.on_load(:active_record) do
       end
     end
 
+    # ── Service Provisioning → Sign Off validation ───────────────────────────
+    # Requires A/B end fields before leaving Service Provisioning (tracker 14)
+    # or C2 - Provisioning (tracker 18).
+    SERVICE_PROVISIONING_TRANSITIONS = {
+      14 => { from: 14, to: 15, label: 'Sign Off' },   # Service Provisioning → Sign Off
+      18 => { from: 78, to: 79, label: 'C2 - Configuration & Testing' },
+    }.freeze
+    SERVICE_PROVISIONING_CF_NAMES = [
+      'A-End Termination POP', 'A-End Switch/Router', 'A-End Termination Port',
+      'B-End Termination POP', 'B-End Switch/Router', 'B-End Termination Port',
+      'VLAN/IP', 'Bandwidth Capacity',
+    ].freeze
+
+    def snow_validate_service_provisioning
+      return unless status_id_changed?
+      t = SERVICE_PROVISIONING_TRANSITIONS[tracker_id]
+      return unless t
+      return unless status_id_was == t[:from] && status_id == t[:to]
+
+      SERVICE_PROVISIONING_CF_NAMES.each do |cf_name|
+        cf  = IssueCustomField.find_by(name: cf_name)
+        next unless cf
+        val = custom_field_value(cf.id.to_s).to_s.strip
+        errors.add(:base, "#{cf_name} is required before moving to #{t[:label]}") if val.blank?
+      end
+    end
+
     # ── After-save hooks ──────────────────────────────────────────────────────
     def snow_sync_after_save
       return unless [14, 18].include?(tracker_id)
@@ -116,15 +152,32 @@ ActiveSupport.on_load(:active_record) do
       # Build Approval auto-assign + contractor handoff
       if status_id == 90  # → Build Approval: store contractor, assign Musonda
         contractor_id = assigned_to_id
+        contractor    = User.find_by(id: contractor_id)
+        musonda       = User.find_by(id: 17)
         SnowBuildApprovalContractor.upsert({ issue_id: id, contractor_id: contractor_id },
                                             unique_by: :issue_id) if contractor_id
         update_column(:assigned_to_id, 17)
+        system_user = User.find_by(admin: true)
+        journals.create!(user: system_user, notes: '') do |j|
+          j.details.build(property: 'attr', prop_key: 'assigned_to_id',
+                          old_value: contractor_id, value: 17)
+        end
+        journals.create!(user: system_user,
+          notes: "🔁 Auto-assigned to *#{musonda&.name || 'Build Approver'}* for Build Approval review. Previous assignee #{contractor&.name} stored and will be restored on approval.")
         Rails.logger.info "SnowSync: issue ##{id} → Build Approval (contractor ##{contractor_id} stored, assigned to Musonda)"
 
       elsif status_id == 51 && status_id_was == 90  # Build Approved → Fiber Build: restore contractor
-        rec = SnowBuildApprovalContractor.find_by(issue_id: id)
+        rec        = SnowBuildApprovalContractor.find_by(issue_id: id)
         if rec&.contractor_id
+          contractor   = User.find_by(id: rec.contractor_id)
+          system_user  = User.find_by(admin: true)
           update_column(:assigned_to_id, rec.contractor_id)
+          journals.create!(user: system_user, notes: '') do |j|
+            j.details.build(property: 'attr', prop_key: 'assigned_to_id',
+                            old_value: 17, value: rec.contractor_id)
+          end
+          journals.create!(user: system_user,
+            notes: "🔁 Auto-reassigned to contractor *#{contractor&.name}* for Fiber Build.")
           Rails.logger.info "SnowSync: issue ##{id} → Fiber Build (reassigned to contractor ##{rec.contractor_id})"
         end
       end

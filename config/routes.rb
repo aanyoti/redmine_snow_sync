@@ -10,4 +10,12 @@ Rails.application.routes.draw do
   get  'api/snow_sync/salesforce_report',   to: 'snow_sync_webhook#salesforce_report', as: 'snow_sync_salesforce_report'
   post 'api/snow_sync/retail_preview',      to: 'snow_sync_webhook#retail_preview',   as: 'snow_sync_retail_preview'
   get  'snow_sla_report',                   to: 'snow_sla_report#index',             as: 'snow_sla_report'
+  post 'snow_active_wip/set',               to: 'snow_active_wip#set',               as: 'snow_set_active_wip'
+  get  'snow_monthly_target',               to: 'snow_monthly_target#index',         as: 'snow_monthly_target'
+  post 'snow_monthly_target/lock',          to: 'snow_monthly_target#lock',          as: 'snow_lock_monthly_target'
+  post 'snow_monthly_target/unlock',        to: 'snow_monthly_target#unlock',        as: 'snow_unlock_monthly_target'
+  get  'snow_libre_nms/devices',            to: 'snow_libre_nms#devices',            as: 'snow_libre_nms_devices'
+  get  'snow_libre_nms/ports',              to: 'snow_libre_nms#ports',              as: 'snow_libre_nms_ports'
+  get  'snow_libre_nms/locations',          to: 'snow_libre_nms#locations',          as: 'snow_libre_nms_locations'
+  get  'snow_libre_nms/bandwidth',          to: 'snow_libre_nms#bandwidth',          as: 'snow_libre_nms_bandwidth'
 end

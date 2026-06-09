@@ -1,0 +1,113 @@
+<% return if cf_ids[:a_device].nil? && cf_ids[:b_device].nil? %>
+<script>
+(function() {
+  var CF           = <%= cf_ids.to_json.html_safe %>;
+  var DEVICES_URL   = '<%= snow_libre_nms_devices_path %>';
+  var PORTS_URL     = '<%= snow_libre_nms_ports_path %>';
+  var LOCATIONS_URL = '<%= snow_libre_nms_locations_path %>';
+  var BANDWIDTH_URL = '<%= snow_libre_nms_bandwidth_path %>';
+
+  function $cf(cfId) { return $('#issue_custom_field_values_' + cfId); }
+
+  // ── Device autocomplete ─────────────────────────────────────────────────
+  function setupDeviceAutocomplete(deviceCfId, portCfId) {
+    var $field = $cf(deviceCfId);
+    if (!$field.length || !deviceCfId) return;
+
+    $field.data('device-ip', null);
+
+    $field.autocomplete({
+      source: function(req, resp) {
+        $.getJSON(DEVICES_URL, { q: req.term }, function(data) {
+          resp($.map(data, function(d) {
+            return {
+              label: d.name + (d.hardware ? '  (' + d.hardware + ')' : '') + '  [' + d.group + ']',
+              value: d.name,
+              device_id: d.id,
+              device_ip: d.ip
+            };
+          }));
+        });
+      },
+      minLength: 2,
+      select: function(event, ui) {
+        $(this).val(ui.item.value)
+               .data('device-ip', ui.item.device_ip);
+        loadPorts(ui.item.device_id, portCfId, ui.item.device_ip);
+        return false;
+      }
+    }).on('change', function() {
+      if (!$(this).val()) {
+        $('#snow-ports-' + portCfId).empty();
+        $(this).data('device-ip', null);
+      }
+    });
+  }
+
+  // ── Port datalist + bandwidth auto-fill ────────────────────────────────
+  function loadPorts(deviceId, portCfId, deviceIp) {
+    if (!deviceId || !portCfId) return;
+    var $portField = $cf(portCfId);
+    if (!$portField.length) return;
+
+    // Store device IP on the port field so we can look up bandwidth later
+    $portField.data('device-ip', deviceIp);
+
+    var listId = 'snow-ports-' + portCfId;
+    if (!$('#' + listId).length) {
+      $portField.after('<datalist id="' + listId + '"></datalist>');
+      $portField.attr('list', listId);
+    }
+
+    $.getJSON(PORTS_URL, { device_id: deviceId }, function(ports) {
+      var $list = $('#' + listId).empty();
+      $.each(ports, function(_, p) {
+        var label = p.name + (p.desc && p.desc !== p.name ? ' — ' + p.desc : '');
+        $list.append($('<option>').val(p.name).text(label));
+      });
+    });
+
+    // When user picks a port, fetch bandwidth from Oxidized
+    $portField.off('change.oxidized').on('change.oxidized', function() {
+      var port      = $(this).val().trim();
+      var ip        = $(this).data('device-ip');
+      var $bwField  = $cf(CF.bandwidth);
+      if (!port || !ip || !$bwField.length) return;
+
+      // Only auto-fill if bandwidth field is empty
+      if ($bwField.val().trim()) return;
+
+      $.getJSON(BANDWIDTH_URL, { device_ip: ip, port: port }, function(data) {
+        if (data.bandwidth) {
+          $bwField.val(data.bandwidth)
+                  .addClass('snow-autofilled')
+                  .attr('title', 'Auto-filled from Oxidized config (' + port + ')');
+        }
+      });
+    });
+  }
+
+  // ── POP autocomplete ────────────────────────────────────────────────────
+  var locationsCache = null;
+  function setupPopAutocomplete(popCfId) {
+    var $field = $cf(popCfId);
+    if (!$field.length || !popCfId) return;
+
+    function initAC(locs) { $field.autocomplete({ source: locs, minLength: 1 }); }
+
+    if (locationsCache) {
+      initAC(locationsCache);
+    } else {
+      $.getJSON(LOCATIONS_URL, function(locs) { locationsCache = locs; initAC(locs); });
+    }
+  }
+
+  // ── Init ────────────────────────────────────────────────────────────────
+  $(function() {
+    setupDeviceAutocomplete(CF.a_device, CF.a_port);
+    setupDeviceAutocomplete(CF.b_device, CF.b_port);
+    setupPopAutocomplete(CF.a_pop);
+    setupPopAutocomplete(CF.b_pop);
+  });
+}());
+</script>

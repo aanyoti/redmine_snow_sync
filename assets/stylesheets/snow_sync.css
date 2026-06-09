@@ -13,3 +13,6 @@
 .mtti-chip-over               { background: #fdf0ef; border: 1px solid #e5b4b0; }
 .mtti-val-ok                  { color: #27ae60; }
 .mtti-val-over                { color: #c0392b; }
+
+/* Monthly Target panel — light-mode defaults */
+#snow-target-panel            { background: #fafafa; border: 1px solid #ddd; }
