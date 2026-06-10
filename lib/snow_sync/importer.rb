@@ -48,6 +48,8 @@ module SnowSync
 
       Setting.plugin_redmine_snow_sync = @cfg.merge('last_sync_at' => Time.current.iso8601)
 
+      backfill_opportunity_types
+
       { imported: @imported, skipped: @skipped, errors: @errors }
     rescue SnowSync::ApiError => e
       { imported: @imported, skipped: @skipped, errors: ["ServiceNow API error: #{e.message}"] }
@@ -419,6 +421,39 @@ module SnowSync
 
     def cf(name)
       @cf_map[name] ||= IssueCustomField.find_by(name: name)&.id&.to_s
+    end
+
+    # On every sync run, find tracker 14/18 issues where Opportunity Type is blank
+    # but Salesforce now has data — fills the gap caused by timing between SNow import
+    # and Salesforce data push.
+    def backfill_opportunity_types
+      opp_cf_id   = cf('Opportunity Type')
+      order_cf_id = cf('Order Number')
+      return unless opp_cf_id && order_cf_id
+
+      project_id = @cfg['target_project_id'].to_i
+
+      blank_issue_ids = CustomValue
+        .joins("INNER JOIN issues ON issues.id = custom_values.customized_id")
+        .where(custom_field_id: opp_cf_id.to_i, customized_type: 'Issue')
+        .where("custom_values.value = '' OR custom_values.value IS NULL")
+        .where("issues.project_id = ? AND issues.tracker_id IN (14, 18)", project_id)
+        .pluck(:customized_id)
+
+      return if blank_issue_ids.empty?
+
+      count = 0
+      Issue.where(id: blank_issue_ids).each do |issue|
+        order_num = issue.custom_field_value(order_cf_id).to_s.strip
+        next if order_num.blank?
+        opp_type = salesforce_opportunity_type(order_num)
+        next unless opp_type.present?
+        CustomValue.where(customized_type: 'Issue', customized_id: issue.id, custom_field_id: opp_cf_id.to_i)
+                   .update_all(value: opp_type)
+        count += 1
+        @log.info "SnowSync: backfilled Opportunity Type='#{opp_type}' on issue ##{issue.id} (#{order_num})"
+      end
+      @log.info "SnowSync: backfilled Opportunity Type on #{count} issue(s)" if count > 0
     end
 
     def salesforce_opportunity_type(order_num)
