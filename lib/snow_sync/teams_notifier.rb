@@ -57,17 +57,17 @@ module SnowSync
 
       users = case event
               when 'new_import'
-                [assignee, kam_user].compact + com_leads
+                [assignee, kam_user].compact + com_leads + admins
               when 'status_change'
-                [assignee, kam_user].compact + watchers
+                [assignee, kam_user].compact + watchers + admins
               when 'rejection'
-                [assignee, kam_user].compact + com_leads
+                [assignee, kam_user].compact + com_leads + admins
               when 'kam_not_found'
                 admins + com_leads
               when 'sla_breach'
-                [assignee].compact + watchers + com_leads
+                [assignee].compact + watchers + com_leads + admins
               else
-                [assignee].compact
+                [assignee].compact + admins
               end
 
       users.uniq.select { |u| should_notify?(u, issue) }
