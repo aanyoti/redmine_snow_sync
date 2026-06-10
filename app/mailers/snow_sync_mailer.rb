@@ -16,6 +16,19 @@ class SnowSyncMailer < ActionMailer::Base
     )
   end
 
+  def welcome_notification(recipient_email, user_name:, login:, password: nil, ldap: false)
+    @user_name  = user_name
+    @login      = login
+    @password   = password
+    @ldap       = ldap
+    @portal_url = REDMINE_URL
+
+    subject = ldap ? 'Liquid IT Projects Portal – Your Account' \
+                   : 'Your Liquid IT Projects Portal – Login Credentials'
+
+    mail(to: recipient_email, from: Setting.mail_from, subject: subject, content_type: 'text/html')
+  end
+
   private
 
   def email_subject
