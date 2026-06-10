@@ -1,5 +1,5 @@
 class SnowMonthlyTargetController < ApplicationController
-  before_action :require_admin
+  before_action :require_admin_or_commercial_lead
 
   CF_IDS = {
     mrr_zmw: SnowMonthlyTarget::MRR_ZMW_CF_ID,
@@ -111,6 +111,17 @@ class SnowMonthlyTargetController < ApplicationController
   end
 
   private
+
+  def require_admin_or_commercial_lead
+    unless User.current.admin? || commercial_lead?
+      render_403
+    end
+  end
+
+  def commercial_lead?
+    User.current.logged? &&
+      User.current.memberships.flat_map(&:roles).any? { |r| r.name == 'Commercial Lead' }
+  end
 
   def compute_uplift(target, cf_awip)
     return [] unless target.locked_at.present?
