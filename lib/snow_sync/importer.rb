@@ -133,14 +133,21 @@ module SnowSync
                   Tracker.find(@cfg['target_tracker_id'].to_i)
                 end
 
+      # Auto-assign by tracker: Commercial Orders → Musonda Tekela, C2 → Larkson Chibesa
+      default_assignee = case tracker.id
+                         when 14 then User.find_by(id: 17)
+                         when 18 then User.find_by(id: 18)
+                         end
+
       issue = Issue.new(
-        project:     project,
-        tracker:     tracker,
-        author:      author,
-        subject:     subject,
-        description: description,
-        start_date:  parse_date(raw(rec, 'opened_at')) || Date.today,
-        due_date:    parse_date(raw(rec, 'due_date'))
+        project:        project,
+        tracker:        tracker,
+        author:         author,
+        subject:        subject,
+        description:    description,
+        start_date:     parse_date(raw(rec, 'opened_at')) || Date.today,
+        due_date:       parse_date(raw(rec, 'due_date')),
+        assigned_to:    default_assignee
       )
 
       cf_vals = build_cf_values(rec)
