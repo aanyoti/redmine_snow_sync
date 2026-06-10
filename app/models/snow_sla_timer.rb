@@ -154,19 +154,17 @@ class SnowSlaTimer < ActiveRecord::Base
     (completed_times.sum / completed_times.size).round(1)
   end
 
-  # Monthly summary: last 6 months, one row per month, ordered newest first.
-  # Each row: { month (Date), order_count, avg_active_days, completed_count, breached_count }
-  def self.monthly_summary(issues)
+  # Monthly summary: last N months, one row per month, ordered newest first.
+  # Each row: { month, order_count, avg_active_days, completed_count, breached_count, current }
+  def self.monthly_summary(issues, months: 12)
     return [] if issues.empty?
 
     hold_ids   = on_hold_ids
     closed_ids = IssueStatus.where("name LIKE 'Closed%'").pluck(:id)
-    issue_ids  = issues.map(&:id)
 
-    # Group issues by start month (start_date falls back to created_on)
     by_month = issues.group_by { |i| (i.start_date || i.created_on.to_date).beginning_of_month }
 
-    cutoff = 6.months.ago.beginning_of_month
+    cutoff = months.months.ago.beginning_of_month
     by_month.select { |m, _| m >= cutoff }
             .sort_by { |m, _| -m.to_time.to_i }
             .map do |month, month_issues|
@@ -186,7 +184,53 @@ class SnowSlaTimer < ActiveRecord::Base
         order_count:     month_issues.size,
         avg_active_days: avg,
         completed_count: month_issues.count { |i| closed_ids.include?(i.status_id) },
-        breached_count:  where(issue_id: month_issue_ids, breached: true).count
+        breached_count:  where(issue_id: month_issue_ids, breached: true).count,
+        current:         month == Date.today.beginning_of_month
+      }
+    end
+  end
+
+  # Aggregate pre-computed monthly rows into calendar quarters.
+  def self.quarterly_from_monthly(monthly_rows)
+    today_q = (Date.today.month - 1) / 3 + 1
+    today_y = Date.today.year
+
+    monthly_rows.group_by { |r| [r[:month].year, (r[:month].month - 1) / 3 + 1] }
+                .sort_by { |k, _| [-k[0], -k[1]] }
+                .map do |(year, quarter), rows|
+      with_avg = rows.select { |r| r[:avg_active_days] }
+      avg = if with_avg.any?
+        total_w = with_avg.sum { |r| r[:order_count] }
+        (with_avg.sum { |r| r[:avg_active_days] * r[:order_count] } / total_w.to_f).round(1)
+      end
+      {
+        label:           "Q#{quarter} #{year}",
+        order_count:     rows.sum { |r| r[:order_count] },
+        avg_active_days: avg,
+        completed_count: rows.sum { |r| r[:completed_count] },
+        breached_count:  rows.sum { |r| r[:breached_count] },
+        current:         year == today_y && quarter == today_q
+      }
+    end
+  end
+
+  # Aggregate pre-computed monthly rows into calendar years.
+  def self.annual_from_monthly(monthly_rows)
+    monthly_rows.group_by { |r| r[:month].year }
+                .sort_by { |year, _| -year }
+                .map do |year, rows|
+      with_avg = rows.select { |r| r[:avg_active_days] }
+      avg = if with_avg.any?
+        total_w = with_avg.sum { |r| r[:order_count] }
+        (with_avg.sum { |r| r[:avg_active_days] * r[:order_count] } / total_w.to_f).round(1)
+      end
+      {
+        label:           year.to_s,
+        order_count:     rows.sum { |r| r[:order_count] },
+        avg_active_days: avg,
+        completed_count: rows.sum { |r| r[:completed_count] },
+        breached_count:  rows.sum { |r| r[:breached_count] },
+        current:         year == Date.today.year
       }
     end
   end

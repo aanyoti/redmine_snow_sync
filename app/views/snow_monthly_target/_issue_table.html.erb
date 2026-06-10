@@ -1,0 +1,66 @@
+<div style="overflow-x:auto;">
+  <table class="list" style="font-size:0.86em; width:100%;">
+    <thead>
+      <tr>
+        <th style="text-align:left;">Order #</th>
+        <th style="text-align:left;">Account</th>
+        <th style="text-align:left;">Status</th>
+        <th style="text-align:left;">Assignee</th>
+        <th style="text-align:right;">MRR (USD)</th>
+        <th style="text-align:right;">NRR (USD)</th>
+        <th style="text-align:right;">MRR (ZMW)</th>
+        <th style="text-align:right;">NRR (ZMW)</th>
+        <th style="text-align:left;">Set Active WIP by</th>
+        <th style="text-align:left;">Set on</th>
+      </tr>
+    </thead>
+    <tbody>
+      <%
+        total_mrr_usd = total_nrr_usd = total_mrr_zmw = total_nrr_zmw = 0.0
+      %>
+      <% issues.each_with_index do |issue, i| %>
+        <%
+          account   = account_cf ? issue.custom_field_value(account_cf.id.to_s).to_s.truncate(40) : ''
+          mrr_usd   = CustomValue.find_by(customized_type:'Issue', customized_id: issue.id, custom_field_id: cf_ids[:mrr_usd])&.value.to_s.gsub(/[^0-9.]/,'').to_f
+          nrr_usd   = CustomValue.find_by(customized_type:'Issue', customized_id: issue.id, custom_field_id: cf_ids[:nrr_usd])&.value.to_s.gsub(/[^0-9.]/,'').to_f
+          mrr_zmw   = CustomValue.find_by(customized_type:'Issue', customized_id: issue.id, custom_field_id: cf_ids[:mrr_zmw])&.value.to_s.gsub(/[^0-9.]/,'').to_f
+          nrr_zmw   = CustomValue.find_by(customized_type:'Issue', customized_id: issue.id, custom_field_id: cf_ids[:nrr_zmw])&.value.to_s.gsub(/[^0-9.]/,'').to_f
+          total_mrr_usd += mrr_usd; total_nrr_usd += nrr_usd
+          total_mrr_zmw += mrr_zmw; total_nrr_zmw += nrr_zmw
+          set_by    = awip_set_by[issue.id]
+          delivered = closed_ids.include?(issue.status_id)
+          row_bg    = delivered ? 'color:#27ae60;' : ''
+        %>
+        <tr class="<%= i.even? ? 'odd' : 'even' %>">
+          <td><%= link_to "##{issue.id}", issue_path(issue.id) %></td>
+          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<%= account %>">
+            <%= account %>
+          </td>
+          <td style="<%= row_bg %>">
+            <%= issue.status.name %>
+            <% if delivered %>&nbsp;&#10003;<% end %>
+          </td>
+          <td><%= issue.assigned_to&.name.to_s.truncate(20) %></td>
+          <td style="text-align:right;"><%= mrr_usd > 0 ? "$#{number_with_delimiter(mrr_usd.round(0))}" : '—' %></td>
+          <td style="text-align:right;"><%= nrr_usd > 0 ? "$#{number_with_delimiter(nrr_usd.round(0))}" : '—' %></td>
+          <td style="text-align:right;"><%= mrr_zmw > 0 ? "K#{number_with_delimiter(mrr_zmw.round(0))}" : '—' %></td>
+          <td style="text-align:right;"><%= nrr_zmw > 0 ? "K#{number_with_delimiter(nrr_zmw.round(0))}" : '—' %></td>
+          <td><%= set_by ? set_by[:user]&.name : '<span class="sla-muted">—</span>'.html_safe %></td>
+          <td style="white-space:nowrap;" class="sla-muted">
+            <%= set_by ? set_by[:at].strftime('%d %b %Y') : '' %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+    <tfoot>
+      <tr style="font-weight:bold; border-top:2px solid #aaa;">
+        <td colspan="4">Total (<%= issues.size %> orders)</td>
+        <td style="text-align:right;">$<%= number_with_delimiter(total_mrr_usd.round(0)) %></td>
+        <td style="text-align:right;">$<%= number_with_delimiter(total_nrr_usd.round(0)) %></td>
+        <td style="text-align:right;">K<%= number_with_delimiter(total_mrr_zmw.round(0)) %></td>
+        <td style="text-align:right;">K<%= number_with_delimiter(total_nrr_zmw.round(0)) %></td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
