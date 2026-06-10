@@ -48,7 +48,7 @@ module SnowSync
 
       Setting.plugin_redmine_snow_sync = @cfg.merge('last_sync_at' => Time.current.iso8601)
 
-      backfill_opportunity_types
+      backfill_salesforce_fields
 
       { imported: @imported, skipped: @skipped, errors: @errors }
     rescue SnowSync::ApiError => e
@@ -423,37 +423,91 @@ module SnowSync
       @cf_map[name] ||= IssueCustomField.find_by(name: name)&.id&.to_s
     end
 
-    # On every sync run, find tracker 14/18 issues where Opportunity Type is blank
-    # but Salesforce now has data — fills the gap caused by timing between SNow import
-    # and Salesforce data push.
-    def backfill_opportunity_types
+    # On every sync run, correct fields that come from Salesforce but may have been
+    # populated with the SNow fallback at import time (timing race: SNow imported
+    # before Salesforce data was pushed).
+    #
+    # Scoped to issues created within 2× the days_back window to avoid scanning
+    # the full history on every run.
+    #
+    # Fields corrected:
+    #   - Opportunity Type: filled when blank
+    #   - Account: updated whenever Salesforce has a different (authoritative) value
+    def backfill_salesforce_fields
       opp_cf_id   = cf('Opportunity Type')
       order_cf_id = cf('Order Number')
+      acc_cf_id   = cf('Account')
       return unless opp_cf_id && order_cf_id
 
       project_id = @cfg['target_project_id'].to_i
+      lookback   = [(@cfg['days_back'].to_i * 2), 14].max.days.ago
 
-      blank_issue_ids = CustomValue
+      # Gather issue_id → order_number for recently created tracker 14/18 issues
+      issue_orders = CustomValue
         .joins("INNER JOIN issues ON issues.id = custom_values.customized_id")
-        .where(custom_field_id: opp_cf_id.to_i, customized_type: 'Issue')
-        .where("custom_values.value = '' OR custom_values.value IS NULL")
-        .where("issues.project_id = ? AND issues.tracker_id IN (14, 18)", project_id)
-        .pluck(:customized_id)
+        .where(custom_field_id: order_cf_id.to_i, customized_type: 'Issue')
+        .where("custom_values.value != '' AND custom_values.value IS NOT NULL")
+        .where("issues.project_id = ? AND issues.tracker_id IN (14, 18) AND issues.created_on >= ?",
+               project_id, lookback)
+        .pluck(:customized_id, :value)
+        .to_h  # { issue_id => order_number }
 
-      return if blank_issue_ids.empty?
+      return if issue_orders.empty?
 
-      count = 0
-      Issue.where(id: blank_issue_ids).each do |issue|
-        order_num = issue.custom_field_value(order_cf_id).to_s.strip
-        next if order_num.blank?
-        opp_type = salesforce_opportunity_type(order_num)
-        next unless opp_type.present?
-        CustomValue.where(customized_type: 'Issue', customized_id: issue.id, custom_field_id: opp_cf_id.to_i)
-                   .update_all(value: opp_type)
-        count += 1
-        @log.info "SnowSync: backfilled Opportunity Type='#{opp_type}' on issue ##{issue.id} (#{order_num})"
+      # Batch-fetch Salesforce data for all order numbers in one query
+      order_nums = issue_orders.values.uniq
+      placeholders = order_nums.map { '?' }.join(',')
+      sf_rows = ActiveRecord::Base.connection.execute(
+        ActiveRecord::Base.sanitize_sql_array(
+          ["SELECT DISTINCT ON (order_number) order_number, account_name, opportunity_type
+            FROM salesforce_orders WHERE order_number IN (#{placeholders})", *order_nums]
+        )
+      ).index_by { |r| r['order_number'] }
+
+      return if sf_rows.empty?
+
+      # Load current CF values for affected issues
+      issue_ids    = issue_orders.keys
+      current_opp  = CustomValue
+        .where(customized_type: 'Issue', customized_id: issue_ids, custom_field_id: opp_cf_id.to_i)
+        .pluck(:customized_id, :value).to_h
+      current_acc  = acc_cf_id ? CustomValue
+        .where(customized_type: 'Issue', customized_id: issue_ids, custom_field_id: acc_cf_id.to_i)
+        .pluck(:customized_id, :value).to_h : {}
+
+      opp_count = 0
+      acc_count = 0
+
+      issue_orders.each do |issue_id, order_num|
+        sf = sf_rows[order_num]
+        next unless sf
+
+        # Opportunity Type — fill only if blank
+        if opp_cf_id && current_opp[issue_id].to_s.strip.blank?
+          opp_type = sf['opportunity_type'].presence
+          if opp_type
+            CustomValue.where(customized_type: 'Issue', customized_id: issue_id, custom_field_id: opp_cf_id.to_i)
+                       .update_all(value: opp_type)
+            opp_count += 1
+            @log.info "SnowSync: backfilled Opportunity Type='#{opp_type}' on issue ##{issue_id} (#{order_num})"
+          end
+        end
+
+        # Account Name — update whenever Salesforce has a different authoritative value
+        if acc_cf_id
+          sf_account = sf['account_name'].presence
+          current    = current_acc[issue_id].to_s.strip
+          if sf_account && sf_account != current
+            CustomValue.where(customized_type: 'Issue', customized_id: issue_id, custom_field_id: acc_cf_id.to_i)
+                       .update_all(value: sf_account)
+            acc_count += 1
+            @log.info "SnowSync: corrected Account on issue ##{issue_id}: '#{current}' → '#{sf_account}' (#{order_num})"
+          end
+        end
       end
-      @log.info "SnowSync: backfilled Opportunity Type on #{count} issue(s)" if count > 0
+
+      @log.info "SnowSync: backfilled Opportunity Type on #{opp_count} issue(s)" if opp_count > 0
+      @log.info "SnowSync: corrected Account Name on #{acc_count} issue(s)"      if acc_count > 0
     end
 
     def salesforce_opportunity_type(order_num)
