@@ -260,9 +260,16 @@ module SnowSync
     end
 
     def build_cf_values(rec)
-      account = disp(rec, 'company').presence ||
-                disp(rec, @cfg['field_account']).presence ||
-                extract_company(rec)
+      snow_account = disp(rec, 'company').presence ||
+                     disp(rec, @cfg['field_account']).presence ||
+                     extract_company(rec)
+      order_num    = disp(rec, @cfg['field_order']).to_s.strip
+      sf_account   = ActiveRecord::Base.connection.select_value(
+                       ActiveRecord::Base.sanitize_sql(
+                         ['SELECT account_name FROM salesforce_orders WHERE order_number = ? LIMIT 1', order_num]
+                       )
+                     ).presence
+      account      = sf_account || snow_account
       {
         cf('SNow Request #')         => disp(rec, 'number'),
         cf('Account')                => account,

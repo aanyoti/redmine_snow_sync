@@ -53,10 +53,12 @@ module SnowSync
     end
 
     def enrich(issue, rec)
-      segment  = rec['segment'].to_s.strip
-      opp_type = rec['opportunity_type'].to_s.strip
+      segment      = rec['segment'].to_s.strip
+      opp_type     = rec['opportunity_type'].to_s.strip
+      sf_account   = rec['account_name'].to_s.strip
 
       opp_cf           = IssueCustomField.find_by(name: 'Opportunity Type')
+      account_cf       = IssueCustomField.find_by(name: 'Account')
       current_opp_type = opp_cf ? issue.custom_field_value(opp_cf.id).to_s.strip : ''
       category         = IssueCategory.find_by(project_id: issue.project_id, name: "Segment - #{segment}")
 
@@ -64,6 +66,14 @@ module SnowSync
 
       # Always update category if it exists and has changed
       issue.category = category if category && issue.category_id != category.id
+
+      # Prefer Salesforce account name over SNow company name — SF is the source of truth for billing names
+      if account_cf && sf_account.present?
+        current_account = issue.custom_field_value(account_cf.id).to_s.strip
+        if current_account != sf_account
+          issue.custom_field_values = issue.custom_field_values.merge(account_cf.id.to_s => sf_account)
+        end
+      end
 
       if current_opp_type.blank?
         # First sync — set opportunity type and reassign tracker if mapped
