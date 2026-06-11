@@ -60,11 +60,14 @@ end
 # Issue model hooks
 ActiveSupport.on_load(:active_record) do
   Issue.class_eval do
-    after_save :snow_sync_after_save
-    after_save :record_sla_status_change
-    validate   :snow_validate_pr_transition
-    validate   :snow_validate_build_approval_sendback
-    validate   :snow_validate_service_provisioning
+    after_save   :snow_sync_after_save
+    after_save   :record_sla_status_change
+    after_save   :record_procurement_status_change
+    after_create :populate_procurement_subtask
+    validate     :snow_validate_pr_transition
+    validate     :snow_validate_build_approval_sendback
+    validate     :snow_validate_service_provisioning
+    validate     :snow_validate_procurement_transitions
 
     private
 
@@ -244,6 +247,92 @@ ActiveSupport.on_load(:active_record) do
 
     rescue => e
       Rails.logger.error "SnowSLA: hook error on issue ##{id}: #{e.message}"
+    end
+
+    # ── Procurement subtask population ───────────────────────────────────────
+    # Fires when a new Procurement subtask (tracker 17) is created.
+    # Copies material CF quantities from the parent Commercial Order and assigns
+    # the issue to the stored PM so they can verify before raising a PR.
+    def populate_procurement_subtask
+      return unless tracker_id == 17
+      return unless parent_id.present?
+      par = Issue.find_by(id: parent_id)
+      return unless par&.tracker_id == 14
+
+      available_cf_ids = available_custom_fields.map { |cf| cf.id.to_s }.to_set
+      cf_updates = {}
+      [91, 92, 93, 94, 95, 96].each do |cf_id|
+        next unless available_cf_ids.include?(cf_id.to_s)
+        val = par.custom_field_value(cf_id.to_s).to_s.strip
+        cf_updates[cf_id.to_s] = val if val.present?
+      end
+
+      pm_rec = SnowIssuePm.find_by(issue_id: par.id)
+      self.assigned_to_id = pm_rec.pm_user_id if pm_rec&.pm_user_id
+      self.custom_field_values = cf_updates unless cf_updates.empty?
+      save(validate: false)
+      Rails.logger.info "SnowSync: Procurement subtask ##{id} populated from parent ##{par.id} (PM=#{pm_rec&.pm_user_id})"
+    rescue => e
+      Rails.logger.error "SnowSync: populate_procurement_subtask failed for ##{id}: #{e.message}"
+    end
+
+    # ── Procurement gate validations ──────────────────────────────────────────
+    def snow_validate_procurement_transitions
+      return unless tracker_id == 17
+      return unless status_id_changed?
+
+      # PR Raised (72) → PO Generated (74): PR Reference must be filled
+      if status_id_was == 72 && status_id == 74
+        return unless Thread.current[:snow_procurement_pr_ref] == id
+        cf  = IssueCustomField.find_by(name: 'PR Reference')
+        val = cf ? custom_field_value(cf.id.to_s).to_s.strip : ''
+        errors.add(:base, 'PR Reference (PR number) must be entered before moving to PO Generated') if val.blank?
+      end
+
+      # PO Generated (74) → Procurement Closed (75): PO Number + PO PDF required
+      if status_id_was == 74 && status_id == 75
+        filenames = Thread.current[:snow_po_filenames]
+        return unless filenames
+        cf  = IssueCustomField.find_by(name: 'PO Number')
+        val = cf ? custom_field_value(cf.id.to_s).to_s.strip : ''
+        errors.add(:base, 'PO Number must be entered before closing procurement') if val.blank?
+        pdfs = (attachments.map(&:filename) + filenames).count { |f| f =~ /\.pdf$/i }
+        errors.add(:base, 'The Purchase Order PDF must be attached before closing procurement') if pdfs.zero?
+      end
+    end
+
+    # ── Procurement Closed: email contractor with PO ──────────────────────────
+    def record_procurement_status_change
+      return unless tracker_id == 17
+      return unless saved_change_to_status_id?
+      return unless status_id == 75  # Procurement Closed
+
+      par = parent_id ? Issue.find_by(id: parent_id) : nil
+      return unless par
+
+      contractor_rec = SnowBuildApprovalContractor.find_by(issue_id: par.id)
+      return unless contractor_rec&.contractor_id
+
+      contractor = User.find_by(id: contractor_rec.contractor_id)
+      return unless contractor
+
+      email = contractor.email_address&.address
+      return if email.blank?
+
+      po_number = custom_field_value(IssueCustomField.find_by(name: 'PO Number')&.id.to_s).to_s.strip
+      po_pdf    = attachments.select { |a| a.filename =~ /\.pdf$/i }.last
+
+      SnowSyncMailer.procurement_closed_notification(
+        email,
+        contractor_name: contractor.name,
+        issue:           self,
+        parent_issue:    par,
+        po_number:       po_number,
+        po_pdf:          po_pdf
+      ).deliver_now
+      Rails.logger.info "SnowSync: Procurement Closed email sent to #{email} for issue ##{id}"
+    rescue => e
+      Rails.logger.error "SnowSync: Procurement Closed email failed for issue ##{id}: #{e.message}"
     end
   end
 end

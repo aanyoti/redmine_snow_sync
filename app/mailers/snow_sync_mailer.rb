@@ -29,6 +29,25 @@ class SnowSyncMailer < ActionMailer::Base
     mail(to: recipient_email, from: Setting.mail_from, subject: subject, content_type: 'text/html')
   end
 
+  def procurement_closed_notification(recipient_email, contractor_name:, issue:, parent_issue:, po_number:, po_pdf: nil)
+    @contractor_name = contractor_name
+    @issue           = issue
+    @parent_issue    = parent_issue
+    @po_number       = po_number.presence || 'N/A'
+    @portal_url      = REDMINE_URL
+
+    if po_pdf && File.exist?(po_pdf.diskfile)
+      attachments[po_pdf.filename] = File.read(po_pdf.diskfile, encoding: 'binary')
+    end
+
+    mail(
+      to:           recipient_email,
+      from:         Setting.mail_from,
+      subject:      "Purchase Order #{@po_number} – #{parent_issue.subject}",
+      content_type: 'text/html'
+    )
+  end
+
   private
 
   def email_subject

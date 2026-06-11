@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body     { font-family: Arial, sans-serif; font-size: 14px; color: #333; margin: 0; padding: 0; }
+    .wrapper { max-width: 600px; margin: 0 auto; padding: 24px; }
+    .header  { background: #273c88; color: #fff; padding: 16px 20px; border-radius: 4px 4px 0 0; }
+    .header h2 { margin: 0; font-size: 18px; }
+    .body    { border: 1px solid #ddd; border-top: none; padding: 24px; border-radius: 0 0 4px 4px; }
+    .facts   { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    .facts td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .facts td:first-child { font-weight: bold; color: #555; width: 140px; }
+    .note    { background: #f0f4ff; border-left: 4px solid #273c88; padding: 12px 16px;
+               margin: 16px 0; font-size: 13px; line-height: 1.6; }
+    .footer  { font-size: 11px; color: #999; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="header">
+    <h2>&#128230; Purchase Order Notification</h2>
+  </div>
+
+  <div class="body">
+    <p>Dear <%= @contractor_name %>,</p>
+
+    <p>
+      Your services for the order below have been approved and a Purchase Order has been raised.
+      Please find the Purchase Order attached to this email and arrange to <strong>invoice Liquid IT Procurement directly</strong>
+      quoting the PO number below.
+    </p>
+
+    <table class="facts">
+      <tr><td>PO Number</td><td><strong><%= @po_number %></strong></td></tr>
+      <tr><td>Order</td><td><%= @parent_issue.subject %></td></tr>
+      <tr><td>Reference #</td><td>#<%= @parent_issue.id %></td></tr>
+    </table>
+
+    <div class="note">
+      Please direct your invoice to the Liquid IT Procurement team and quote PO Number <strong><%= @po_number %></strong>
+      on all correspondence. Do not invoice the Projects team directly.
+    </div>
+
+    <p style="margin-top:20px; font-size:13px; color:#555;">
+      If you have any questions regarding this Purchase Order, please contact the Liquid IT Procurement team.
+    </p>
+  </div>
+
+  <div class="footer">
+    Liquid IT Zambia &mdash; This is an automated notification. Please do not reply to this email.
+  </div>
+
+</div>
+</body>
+</html>
