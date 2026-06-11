@@ -68,8 +68,8 @@ ActiveSupport.on_load(:active_record) do
 
     private
 
-    # ── Fiber Build transition validation ─────────────────────────────────────
-    # Runs on every save; only active during Purchase-Requisition → Fiber Build transition
+    # ── Build Approval gate validation ────────────────────────────────────────
+    # Runs on every save; only active during Purchase-Requisition → Build Approval transition
     # (thread-local set by IssueControllerPatch#update)
     def snow_validate_pr_transition
       filenames = Thread.current[:snow_pr_filenames]
@@ -77,7 +77,7 @@ ActiveSupport.on_load(:active_record) do
 
       return unless tracker_id == 14 &&
                     status_id_changed? &&
-                    status_id == 51 &&   # Fiber Build
+                    status_id == 90 &&   # Build Approval
                     status_id_was == 50  # Purchase-Requisition
 
       # 1. All material CFs must be filled in
@@ -85,7 +85,7 @@ ActiveSupport.on_load(:active_record) do
         cf  = IssueCustomField.find_by(name: cf_name)
         next unless cf
         val = custom_field_value(cf.id.to_s).to_s.strip
-        errors.add(:base, "#{cf_name} is required before submitting to Fiber Build") if val.blank?
+        errors.add(:base, "#{cf_name} is required before submitting for Build Approval") if val.blank?
       end
 
       # 2. At least 5 photos (jpg / png)
@@ -151,50 +151,72 @@ ActiveSupport.on_load(:active_record) do
 
       return unless saved_change_to_status_id?
 
-      # Contractor-Assignment: auto-assign to Boas Katanga for contractor selection
+      # Contractor-Assignment: capture PM, then auto-assign to Boas for contractor selection
       if status_id == 49
         boas       = User.find_by(id: 53)
         sys_user   = User.where(admin: true).first
-        prev_id    = saved_changes[:assigned_to_id]&.first || assigned_to_id
+        pm_id      = saved_changes[:assigned_to_id]&.first || assigned_to_id
+        SnowIssuePm.find_or_create_by(issue_id: id) { |r| r.pm_user_id = pm_id }
         update_column(:assigned_to_id, 53)
         journals.create!(user: sys_user, notes: '') do |j|
           j.details.build(property: 'attr', prop_key: 'assigned_to_id',
-                          old_value: prev_id, value: 53)
+                          old_value: pm_id, value: 53)
         end
         journals.create!(user: sys_user,
           notes: "🔁 Auto-assigned to *#{boas&.name || 'Boas Katanga'}* to select a contractor.")
-        Rails.logger.info "SnowSync: issue ##{id} → Contractor-Assignment (assigned to Boas id=53)"
+        Rails.logger.info "SnowSync: issue ##{id} → Contractor-Assignment (PM ##{pm_id} stored, assigned to Boas)"
 
-      # Build Approval auto-assign + contractor handoff
-      elsif status_id == 90  # → Build Approval: store contractor, assign Musonda
+      # Build Approval: store contractor, assign to stored PM
+      elsif status_id == 90
         contractor_id = assigned_to_id
         contractor    = User.find_by(id: contractor_id)
-        musonda       = User.find_by(id: 17)
+        pm_rec        = SnowIssuePm.find_by(issue_id: id)
+        pm            = pm_rec&.pm_user_id ? User.find_by(id: pm_rec.pm_user_id) : nil
+        pm_id         = pm&.id || 17  # fallback to Musonda if PM not recorded
+        system_user   = User.where(admin: true).first
         SnowBuildApprovalContractor.upsert({ issue_id: id, contractor_id: contractor_id },
                                             unique_by: :issue_id) if contractor_id
-        update_column(:assigned_to_id, 17)
-        system_user = User.find_by(admin: true)
+        update_column(:assigned_to_id, pm_id)
         journals.create!(user: system_user, notes: '') do |j|
           j.details.build(property: 'attr', prop_key: 'assigned_to_id',
-                          old_value: contractor_id, value: 17)
+                          old_value: contractor_id, value: pm_id)
         end
         journals.create!(user: system_user,
-          notes: "🔁 Auto-assigned to *#{musonda&.name || 'Build Approver'}* for Build Approval review. Previous assignee #{contractor&.name} stored and will be restored on approval.")
-        Rails.logger.info "SnowSync: issue ##{id} → Build Approval (contractor ##{contractor_id} stored, assigned to Musonda)"
+          notes: "🔁 Auto-assigned to PM *#{pm&.name || 'Project Manager'}* for Build Approval review. Contractor #{contractor&.name} stored and will be restored on approval.")
+        Rails.logger.info "SnowSync: issue ##{id} → Build Approval (contractor ##{contractor_id} stored, assigned to PM ##{pm_id})"
 
-      elsif status_id == 51 && status_id_was == 90  # Build Approved → Fiber Build: restore contractor
-        rec        = SnowBuildApprovalContractor.find_by(issue_id: id)
+      # Build Approved → Fiber Build: restore contractor
+      elsif status_id == 51 && status_id_was == 90
+        rec = SnowBuildApprovalContractor.find_by(issue_id: id)
         if rec&.contractor_id
-          contractor   = User.find_by(id: rec.contractor_id)
-          system_user  = User.find_by(admin: true)
+          contractor  = User.find_by(id: rec.contractor_id)
+          system_user = User.where(admin: true).first
+          pm_id       = assigned_to_id
           update_column(:assigned_to_id, rec.contractor_id)
           journals.create!(user: system_user, notes: '') do |j|
             j.details.build(property: 'attr', prop_key: 'assigned_to_id',
-                            old_value: 17, value: rec.contractor_id)
+                            old_value: pm_id, value: rec.contractor_id)
           end
           journals.create!(user: system_user,
-            notes: "🔁 Auto-reassigned to contractor *#{contractor&.name}* for Fiber Build.")
-          Rails.logger.info "SnowSync: issue ##{id} → Fiber Build (reassigned to contractor ##{rec.contractor_id})"
+            notes: "🔁 Build Approved — auto-reassigned to contractor *#{contractor&.name}* for Fiber Build.")
+          Rails.logger.info "SnowSync: issue ##{id} → Fiber Build approved (contractor ##{rec.contractor_id} restored)"
+        end
+
+      # Build Approval send-back → Purchase-Requisition: restore contractor
+      elsif status_id == 50 && status_id_was == 90
+        rec = SnowBuildApprovalContractor.find_by(issue_id: id)
+        if rec&.contractor_id
+          contractor  = User.find_by(id: rec.contractor_id)
+          system_user = User.where(admin: true).first
+          pm_id       = assigned_to_id
+          update_column(:assigned_to_id, rec.contractor_id)
+          journals.create!(user: system_user, notes: '') do |j|
+            j.details.build(property: 'attr', prop_key: 'assigned_to_id',
+                            old_value: pm_id, value: rec.contractor_id)
+          end
+          journals.create!(user: system_user,
+            notes: "🔁 Sent back for revision — reassigned to contractor *#{contractor&.name}* to address feedback.")
+          Rails.logger.info "SnowSync: issue ##{id} → PR send-back (contractor ##{rec.contractor_id} restored)"
         end
       end
     end
