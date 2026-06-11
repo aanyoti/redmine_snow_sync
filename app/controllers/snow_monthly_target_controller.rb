@@ -1,5 +1,5 @@
 class SnowMonthlyTargetController < ApplicationController
-  before_action :require_admin_or_commercial_lead
+  before_action :require_admin_or_tech_lead
 
   CF_IDS = {
     mrr_zmw: SnowMonthlyTarget::MRR_ZMW_CF_ID,
@@ -112,15 +112,15 @@ class SnowMonthlyTargetController < ApplicationController
 
   private
 
-  def require_admin_or_commercial_lead
-    unless User.current.admin? || commercial_lead?
+  def require_admin_or_tech_lead
+    unless User.current.admin? || tech_lead?
       render_403
     end
   end
 
-  def commercial_lead?
+  def tech_lead?
     User.current.logged? &&
-      User.current.memberships.flat_map(&:roles).any? { |r| r.name == 'Commercial Lead' }
+      User.current.memberships.flat_map(&:roles).any? { |r| r.name == 'Tech Lead' }
   end
 
   def compute_uplift(target, cf_awip)

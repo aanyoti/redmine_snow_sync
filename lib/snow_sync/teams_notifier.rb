@@ -40,32 +40,32 @@ module SnowSync
 
     # ── Recipient rules ──────────────────────────────────────────────────────
     #
-    # new_import    → KAM (Prepared By) + assignee + Commercial Leads
+    # new_import    → KAM (Prepared By) + assignee + Tech Leads
     # status_change → assignee + KAM + issue watchers
-    # rejection     → KAM + assignee + Commercial Leads
-    # kam_not_found → admins + Commercial Leads
-    # sla_breach    → assignee + issue watchers + Commercial Leads
+    # rejection     → KAM + assignee + Tech Leads
+    # kam_not_found → admins + Tech Leads
+    # sla_breach    → assignee + issue watchers + Tech Leads
     #
     # Contractor rule: contractor-only users receive ONLY if assigned to them.
 
     def build_recipients(event, issue)
-      assignee  = issue.assigned_to.is_a?(User) ? issue.assigned_to : nil
-      kam_user  = find_kam(issue)
-      watchers  = issue.watcher_users.select { |u| u.is_a?(User) && u.active? }
-      com_leads = commercial_leads
-      admins    = User.active.where(admin: true).to_a
+      assignee   = issue.assigned_to.is_a?(User) ? issue.assigned_to : nil
+      kam_user   = find_kam(issue)
+      watchers   = issue.watcher_users.select { |u| u.is_a?(User) && u.active? }
+      tech_leads = tech_leads_list
+      admins     = User.active.where(admin: true).to_a
 
       users = case event
               when 'new_import'
-                [assignee, kam_user].compact + com_leads + admins
+                [assignee, kam_user].compact + tech_leads + admins
               when 'status_change'
                 [assignee, kam_user].compact + watchers + admins
               when 'rejection'
-                [assignee, kam_user].compact + com_leads + admins
+                [assignee, kam_user].compact + tech_leads + admins
               when 'kam_not_found'
-                admins + com_leads
+                admins + tech_leads
               when 'sla_breach'
-                [assignee].compact + watchers + com_leads + admins
+                [assignee].compact + watchers + tech_leads + admins
               else
                 [assignee].compact + admins
               end
@@ -91,10 +91,10 @@ module SnowSync
       User.active.find { |u| u.name.casecmp?(name) }
     end
 
-    def commercial_leads
+    def tech_leads_list
       User.active
           .joins(members: :roles)
-          .where(roles: { name: 'Commercial Lead' })
+          .where(roles: { name: 'Tech Lead' })
           .distinct
           .to_a
     end
