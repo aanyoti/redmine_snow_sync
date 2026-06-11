@@ -1,11 +1,15 @@
 module SnowSync
   module IssueControllerPatch
     MATERIAL_CF_NAMES  = ['Fiber Length', 'Media Converters', 'P2P Radios', 'Routers', 'Switches', 'APs'].freeze
+    OPTICAL_CF_NAMES   = ['A-End Rx Level (dBm)', 'B-End Rx Level (dBm)', 'Optical Loss (dB)'].freeze
     TRACKER_ID         = 14  # Commercial Orders
     PROCUREMENT_TRACKER = 17 # Procurement
     CONTRACTOR_ASGN    = 49  # Contractor-Assignment
     PURCHASE_REQ       = 50  # Purchase-Requisition
     FIBER_BUILD        = 51  # Fiber Build
+    QUALITY_ASSURANCE  = 52  # Quality Assurance
+    SPLICING           = 57  # Splicing
+    SERVICE_DELIVERY   = 59  # Service Delivery
     BUILD_APPROVAL     = 90  # Build Approval
     PR_RAISED          = 72  # Procurement: PR Raised
     PO_GENERATED       = 74  # Procurement: PO Generated
@@ -24,6 +28,16 @@ module SnowSync
           # Gate 2: Build Approval → Purchase-Requisition (send-back requires comment)
           if @issue.status_id == BUILD_APPROVAL && new_status == PURCHASE_REQ
             Thread.current[:snow_build_approval_sendback] = @issue.id
+          end
+
+          # Gate 5: Fiber Build → Quality Assurance (min 5 photos required)
+          if @issue.status_id == FIBER_BUILD && new_status == QUALITY_ASSURANCE
+            Thread.current[:snow_fiber_build_filenames] = attachment_filenames_from_params
+          end
+
+          # Gate 6: Splicing → Service Delivery (optical CFs + photo required)
+          if @issue.status_id == SPLICING && new_status == SERVICE_DELIVERY
+            Thread.current[:snow_splicing_filenames] = attachment_filenames_from_params
           end
         end
 
@@ -47,6 +61,8 @@ module SnowSync
         Thread.current[:snow_build_approval_sendback] = nil
         Thread.current[:snow_procurement_pr_ref]      = nil
         Thread.current[:snow_po_filenames]            = nil
+        Thread.current[:snow_fiber_build_filenames]   = nil
+        Thread.current[:snow_splicing_filenames]      = nil
       end
     end
 

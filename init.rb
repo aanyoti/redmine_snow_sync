@@ -66,6 +66,8 @@ ActiveSupport.on_load(:active_record) do
     after_create :populate_procurement_subtask
     validate     :snow_validate_pr_transition
     validate     :snow_validate_build_approval_sendback
+    validate     :snow_validate_fiber_build_gate
+    validate     :snow_validate_splicing_gate
     validate     :snow_validate_service_provisioning
     validate     :snow_validate_procurement_transitions
 
@@ -116,11 +118,53 @@ ActiveSupport.on_load(:active_record) do
       end
     end
 
-    # ── Service Provisioning → Sign Off validation ───────────────────────────
-    # Requires A/B end fields before leaving Service Provisioning (tracker 14)
+    # ── Fiber Build → Quality Assurance gate ─────────────────────────────────
+    # Contractor must attach ≥5 build photos before QA hand-off.
+    def snow_validate_fiber_build_gate
+      filenames = Thread.current[:snow_fiber_build_filenames]
+      return unless filenames
+      return unless tracker_id == 14 &&
+                    status_id_changed? &&
+                    status_id == 52 &&   # Quality Assurance
+                    status_id_was == 51  # Fiber Build
+
+      existing_photos = attachments.count { |a| a.filename =~ /\.(jpg|jpeg|png)$/i }
+      new_photos      = filenames.count    { |f| f =~ /\.(jpg|jpeg|png)$/i }
+      total = existing_photos + new_photos
+      if total < 5
+        errors.add(:base, "At least 5 build photos (JPG/PNG) are required before Quality Assurance — #{total} attached")
+      end
+    end
+
+    # ── Splicing → Service Delivery gate ─────────────────────────────────────
+    # Requires optical measurement CFs filled and ≥1 measurement photo.
+    def snow_validate_splicing_gate
+      filenames = Thread.current[:snow_splicing_filenames]
+      return unless filenames
+      return unless tracker_id == 14 &&
+                    status_id_changed? &&
+                    status_id == 59 &&   # Service Delivery
+                    status_id_was == 57  # Splicing
+
+      SnowSync::IssueControllerPatch::OPTICAL_CF_NAMES.each do |cf_name|
+        cf  = IssueCustomField.find_by(name: cf_name)
+        next unless cf
+        val = custom_field_value(cf.id.to_s).to_s.strip
+        errors.add(:base, "#{cf_name} is required before moving to Service Delivery") if val.blank?
+      end
+
+      existing_photos = attachments.count { |a| a.filename =~ /\.(jpg|jpeg|png)$/i }
+      new_photos      = filenames.count    { |f| f =~ /\.(jpg|jpeg|png)$/i }
+      if (existing_photos + new_photos).zero?
+        errors.add(:base, 'At least 1 optical measurement photo is required before Service Delivery')
+      end
+    end
+
+    # ── Service Delivery → Customer Handover validation ───────────────────────
+    # Requires A/B end termination CFs before leaving Service Delivery (tracker 14)
     # or C2 - Provisioning (tracker 18).
     SERVICE_PROVISIONING_TRANSITIONS = {
-      14 => { from: 14, to: 15, label: 'Sign Off' },   # Service Provisioning → Sign Off
+      14 => { from: 59, to: 60, label: 'Customer Handover' },  # Service Delivery → Customer Handover
       18 => { from: 78, to: 79, label: 'C2 - Configuration & Testing' },
     }.freeze
     SERVICE_PROVISIONING_CF_NAMES = [
@@ -221,6 +265,20 @@ ActiveSupport.on_load(:active_record) do
             notes: "🔁 Sent back for revision — reassigned to contractor *#{contractor&.name}* to address feedback.")
           Rails.logger.info "SnowSync: issue ##{id} → PR send-back (contractor ##{rec.contractor_id} restored)"
         end
+
+      # Service Delivery: auto-assign to Larkson Chibesa (id=18)
+      elsif status_id == 59 && tracker_id == 14
+        larkson     = User.find_by(id: 18)
+        system_user = User.where(admin: true).first
+        old_assignee = assigned_to_id
+        update_column(:assigned_to_id, 18)
+        journals.create!(user: system_user, notes: '') do |j|
+          j.details.build(property: 'attr', prop_key: 'assigned_to_id',
+                          old_value: old_assignee, value: 18)
+        end
+        journals.create!(user: system_user,
+          notes: "🔁 Auto-assigned to *#{larkson&.name || 'Larkson Chibesa'}* for Service Delivery.")
+        Rails.logger.info "SnowSync: issue ##{id} → Service Delivery (assigned to Larkson #18)"
       end
     end
 
