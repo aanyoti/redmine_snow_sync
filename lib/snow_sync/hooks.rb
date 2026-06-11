@@ -13,9 +13,13 @@ module SnowSync
       bandwidth: 'Bandwidth Capacity',
     }.freeze
 
-    # IDs of the A-B end termination CFs — only visible from Service Delivery (59) onwards.
+    # A-B end termination CFs — only visible from Service Delivery (59) onwards.
     AB_CF_IDS        = [98, 99, 100, 101, 102, 103, 104, 105].freeze
     AB_SHOW_STATUSES = [59, 60, 61, 53, 17].freeze
+
+    # Optical measurement CFs — only visible from Splicing (57) onwards.
+    OPTICAL_CF_IDS        = [106, 107, 108].freeze
+    OPTICAL_SHOW_STATUSES = [57, 59, 60, 61, 53, 17].freeze
 
     # Hides the existing attachments list for contractor-only users.
     # The upload widget (#attachments_fields) uses a different selector and stays visible.
@@ -25,13 +29,17 @@ module SnowSync
       '<style>.attachments { display: none !important; }</style>'.html_safe
     end
 
-    # Issue show page: hide A-B end CF rows if status is before Service Delivery.
+    # Issue show page: hide A-B end and optical CFs based on status.
     def view_issues_show_details_bottom(context = {})
       issue = context[:issue]
       return '' unless issue&.tracker_id == 14
-      return '' if AB_SHOW_STATUSES.include?(issue.status_id)
 
-      selectors = AB_CF_IDS.map { |id| "tr:has(td.cf_#{id})" }.join(', ')
+      hidden_ids = []
+      hidden_ids += AB_CF_IDS     unless AB_SHOW_STATUSES.include?(issue.status_id)
+      hidden_ids += OPTICAL_CF_IDS unless OPTICAL_SHOW_STATUSES.include?(issue.status_id)
+      return '' if hidden_ids.empty?
+
+      selectors = hidden_ids.map { |id| "tr:has(td.cf_#{id})" }.join(', ')
       "<style>#{selectors} { display: none !important; }</style>".html_safe
     end
 
@@ -42,25 +50,30 @@ module SnowSync
 
       output = +''
 
-      # Dynamic show/hide of A-B end CFs based on status selection (tracker 14 only).
+      # Dynamic show/hide of conditional CFs based on status selection (tracker 14 only).
       if issue.tracker_id == 14
         output << <<~HTML
           <script>
           (function(){
-            var showFrom = #{AB_SHOW_STATUSES.to_json};
-            var cfIds    = #{AB_CF_IDS.to_json};
-            function toggleAbFields(statusId){
-              var show = showFrom.indexOf(parseInt(statusId, 10)) !== -1;
-              cfIds.forEach(function(id){
-                document.querySelectorAll('.cf_' + id).forEach(function(el){
-                  el.style.display = show ? '' : 'none';
+            var groups = [
+              { showFrom: #{AB_SHOW_STATUSES.to_json},     ids: #{AB_CF_IDS.to_json} },
+              { showFrom: #{OPTICAL_SHOW_STATUSES.to_json}, ids: #{OPTICAL_CF_IDS.to_json} }
+            ];
+            function toggleGroups(statusId){
+              var sid = parseInt(statusId, 10);
+              groups.forEach(function(g){
+                var show = g.showFrom.indexOf(sid) !== -1;
+                g.ids.forEach(function(id){
+                  document.querySelectorAll('.cf_' + id).forEach(function(el){
+                    el.style.display = show ? '' : 'none';
+                  });
                 });
               });
             }
             var sel = document.getElementById('issue_status_id');
             if(sel){
-              toggleAbFields(sel.value);
-              sel.addEventListener('change', function(){ toggleAbFields(this.value); });
+              toggleGroups(sel.value);
+              sel.addEventListener('change', function(){ toggleGroups(this.value); });
             }
           })();
           </script>
