@@ -68,8 +68,8 @@ ActiveSupport.on_load(:active_record) do
 
     private
 
-    # ── Purchase-Requisition transition validation ────────────────────────────
-    # Runs on every save; only active during Contractor-Assignment → PR transition
+    # ── Fiber Build transition validation ─────────────────────────────────────
+    # Runs on every save; only active during Purchase-Requisition → Fiber Build transition
     # (thread-local set by IssueControllerPatch#update)
     def snow_validate_pr_transition
       filenames = Thread.current[:snow_pr_filenames]
@@ -77,15 +77,15 @@ ActiveSupport.on_load(:active_record) do
 
       return unless tracker_id == 14 &&
                     status_id_changed? &&
-                    status_id == 50 &&   # Purchase-Requisition
-                    status_id_was == 49  # Contractor-Assignment
+                    status_id == 51 &&   # Fiber Build
+                    status_id_was == 50  # Purchase-Requisition
 
       # 1. All material CFs must be filled in
       SnowSync::IssueControllerPatch::MATERIAL_CF_NAMES.each do |cf_name|
         cf  = IssueCustomField.find_by(name: cf_name)
         next unless cf
         val = custom_field_value(cf.id.to_s).to_s.strip
-        errors.add(:base, "#{cf_name} is required before submitting to Purchase-Requisition") if val.blank?
+        errors.add(:base, "#{cf_name} is required before submitting to Fiber Build") if val.blank?
       end
 
       # 2. At least 5 photos (jpg / png)
@@ -151,8 +151,22 @@ ActiveSupport.on_load(:active_record) do
 
       return unless saved_change_to_status_id?
 
+      # Contractor-Assignment: auto-assign to Boas Katanga for contractor selection
+      if status_id == 49
+        boas       = User.find_by(id: 53)
+        sys_user   = User.where(admin: true).first
+        prev_id    = saved_changes[:assigned_to_id]&.first || assigned_to_id
+        update_column(:assigned_to_id, 53)
+        journals.create!(user: sys_user, notes: '') do |j|
+          j.details.build(property: 'attr', prop_key: 'assigned_to_id',
+                          old_value: prev_id, value: 53)
+        end
+        journals.create!(user: sys_user,
+          notes: "🔁 Auto-assigned to *#{boas&.name || 'Boas Katanga'}* to select a contractor.")
+        Rails.logger.info "SnowSync: issue ##{id} → Contractor-Assignment (assigned to Boas id=53)"
+
       # Build Approval auto-assign + contractor handoff
-      if status_id == 90  # → Build Approval: store contractor, assign Musonda
+      elsif status_id == 90  # → Build Approval: store contractor, assign Musonda
         contractor_id = assigned_to_id
         contractor    = User.find_by(id: contractor_id)
         musonda       = User.find_by(id: 17)

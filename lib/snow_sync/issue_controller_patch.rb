@@ -4,14 +4,15 @@ module SnowSync
     TRACKER_ID      = 14  # Commercial Orders
     CONTRACTOR_ASGN = 49  # Contractor-Assignment
     PURCHASE_REQ    = 50  # Purchase-Requisition
+    FIBER_BUILD     = 51  # Fiber Build
     BUILD_APPROVAL  = 90  # Build Approval
 
     def update
       if @issue && @issue.tracker_id == TRACKER_ID
         new_status = params.dig(:issue, :status_id).to_i
 
-        # Gate 1: Contractor-Assignment → Purchase-Requisition
-        if @issue.status_id == CONTRACTOR_ASGN && new_status == PURCHASE_REQ
+        # Gate 1: Purchase-Requisition → Fiber Build (contractor must have filled CFs + photos + PDF)
+        if @issue.status_id == PURCHASE_REQ && new_status == FIBER_BUILD
           Thread.current[:snow_pr_filenames] = attachment_filenames_from_params
         end
 
