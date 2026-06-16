@@ -39,6 +39,26 @@ class SnowMonthlyTargetController < ApplicationController
 
     @all_issues_count = Issue.where(tracker_id: [14, 18]).count
     @on_hold_count    = Issue.where(tracker_id: [14, 18], status_id: @on_hold_ids).count
+
+    # SF Pipeline data for the selected month
+    month_str = '%04d-%02d' % [@year, @month]
+    conn = ActiveRecord::Base.connection
+    @sf_month = conn.select_one(
+      conn.sanitize_sql_array(["SELECT * FROM vw_sf_monthly WHERE month_year = ?", month_str])
+    )
+    @sf_new_logos = conn.select_all(
+      conn.sanitize_sql_array([<<~SQL, month_str])
+        SELECT account_name, account_owner,
+               COUNT(*) AS sub_count,
+               SUM(mrr_zmw)::numeric(14,0) AS mrr_zmw,
+               SUM(nrr_zmw)::numeric(14,0) AS nrr_zmw
+        FROM vw_sf_pipeline
+        WHERE is_fy27 AND is_new_logo AND month_year = ?
+        GROUP BY account_name, account_owner
+        ORDER BY SUM(mrr_zmw) DESC
+        LIMIT 15
+      SQL
+    ).to_a
   end
 
   def lock

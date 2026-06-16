@@ -151,6 +151,76 @@ document.getElementById('target-modal-overlay').addEventListener('click', functi
                        awip_set_by: @awip_set_by, cf_ids: cf_ids, show_uplift_col: false } %>
 <% end %>
 
+<%# ── SF Pipeline section ──────────────────────────────────────────────────── %>
+<% if @sf_month %>
+<div style="margin-top:32px; padding:16px 20px; border:1px solid #3a3f52; border-radius:6px;">
+  <h3 style="margin:0 0 14px;">&#128200; Salesforce Pipeline &mdash; <%= @sf_month['month_year'] %></h3>
+
+  <%# Mini summary cards %>
+  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
+    <%
+      sfm = @sf_month
+      fmtk = ->(v) { v.nil? ? '—' : "K #{number_with_delimiter(v.to_f.round(0))}" }
+      sf_cards = [
+        { label: 'New Logo Accounts', value: sfm['new_logo_accounts'],            color: '#8e44ad' },
+        { label: 'New Logo Orders',   value: sfm['new_logo_orders'],              color: '#8e44ad' },
+        { label: 'New Logo MRR',      value: fmtk.(sfm['new_logo_mrr_zmw']),     color: '#d35400' },
+        { label: 'Total Diff MRR',    value: fmtk.(sfm['mrr_zmw']),              color: '#16a085' },
+        { label: 'Total Diff NRR',    value: fmtk.(sfm['nrr_zmw']),              color: '#2980b9' },
+        { label: 'SF Accepted',       value: sfm['accepted_count'],               color: '#27ae60' },
+        { label: 'SF Delivered',      value: sfm['delivered_count'],              color: '#2c3e50' },
+      ]
+    %>
+    <% sf_cards.each do |c| %>
+      <div style="padding:10px 16px; border-radius:4px; background:<%= c[:color] %>; color:#fff; text-align:center; min-width:110px; flex:1;">
+        <div style="font-size:1.5em; font-weight:bold; line-height:1.1;"><%= c[:value] %></div>
+        <div style="font-size:0.75em; margin-top:2px; opacity:0.9;"><%= c[:label] %></div>
+      </div>
+    <% end %>
+  </div>
+
+  <%# Diff MRR note %>
+  <p style="font-size:0.8em; color:#888; margin:0 0 12px;">
+    <strong>Diff MRR / Diff NRR</strong> = incremental revenue from Salesforce.
+    For <strong>New Business</strong> orders this is the full contract MRR.
+    For upgrades/downgrades it shows only the net change vs the existing subscription.
+  </p>
+
+  <%# New logo accounts table %>
+  <% if @sf_new_logos.any? %>
+    <h4 style="margin:0 0 8px; font-size:0.92em; color:#8e44ad;">New Logo Accounts This Month <span style="font-weight:normal; color:#888;">(top 15 by MRR)</span></h4>
+    <table class="list" style="font-size:0.84em; width:100%;">
+      <thead>
+        <tr>
+          <th style="text-align:left;">Account</th>
+          <th style="text-align:left;">KAM</th>
+          <th style="text-align:right;">Subscriptions</th>
+          <th style="text-align:right;">Diff MRR (ZMW)</th>
+          <th style="text-align:right;">Diff NRR (ZMW)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @sf_new_logos.each_with_index do |row, i| %>
+          <tr class="<%= i.even? ? 'odd' : 'even' %>">
+            <td style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                title="<%= h row['account_name'] %>">
+              <span style="display:inline-block; background:#8e44ad; color:#fff; font-size:0.68em; padding:1px 4px; border-radius:2px; margin-right:4px; vertical-align:middle;">NEW</span>
+              <%= h row['account_name'] %>
+            </td>
+            <td style="font-size:0.88em; color:#888;"><%= h row['account_owner'] %></td>
+            <td style="text-align:right;"><%= row['sub_count'] %></td>
+            <td style="text-align:right; font-weight:bold; color:#16a085;">K <%= number_with_delimiter(row['mrr_zmw'].to_f.round(0)) %></td>
+            <td style="text-align:right; color:#d35400;"><%= row['nrr_zmw'].to_f > 0 ? "K #{number_with_delimiter(row['nrr_zmw'].to_f.round(0))}" : '—' %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <p style="color:#888; font-size:0.88em;">No new logo orders in Salesforce for this month.</p>
+  <% end %>
+</div>
+<% end %>
+
 <%# ── Summary section ─────────────────────────────────────────────────────── %>
 <div style="margin-top:32px;">
   <h3 style="margin-bottom:12px;">&#128202; Summary</h3>

@@ -19,6 +19,8 @@ Rails.application.routes.draw do
   get  'snow_libre_nms/locations',          to: 'snow_libre_nms#locations',          as: 'snow_libre_nms_locations'
   get  'snow_libre_nms/bandwidth',          to: 'snow_libre_nms#bandwidth',          as: 'snow_libre_nms_bandwidth'
 
+  get  'snow_sf_pipeline',              to: 'snow_sf_pipeline#index',            as: 'snow_sf_pipeline'
+
   # PowerBI read-only API
   get  'api/powerbi',                       to: 'snow_powerbi#index',                as: 'snow_powerbi_index'
   get  'api/powerbi/:dataset',              to: 'snow_powerbi#dataset',              as: 'snow_powerbi_dataset'

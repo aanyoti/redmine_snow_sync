@@ -1,0 +1,232 @@
+<h2>&#128200; Salesforce Pipeline &mdash; FY27 <span style="font-size:0.6em; font-weight:normal; color:#888;">(Mar 2026 &ndash; Feb 2027)</span></h2>
+
+<%# ── Summary cards ──────────────────────────────────────────────────── %>
+<div style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+  <%
+    s = @summary
+    fmt = ->(n) { n.nil? ? '—' : ActiveSupport::NumberHelper.number_to_delimited(n.to_i) }
+    cards = [
+      { label: 'Total Accounts',    value: fmt.(s['total_accounts']),    color: '#2980b9', sub: "#{fmt.(s['total_orders'])} orders" },
+      { label: 'New Logo Accounts', value: fmt.(s['new_logo_accounts']), color: '#8e44ad', sub: "#{fmt.(s['new_logo_orders'])} orders" },
+      { label: 'Total MRR',         value: "K #{fmt.(s['total_mrr_zmw'])}", color: '#16a085', sub: "NRR K #{fmt.(s['total_nrr_zmw'])}" },
+      { label: 'New Logo MRR',      value: "K #{fmt.(s['new_logo_mrr_zmw'])}", color: '#d35400', sub: "incremental only" },
+      { label: 'Accepted',          value: fmt.(s['accepted_count']),    color: '#27ae60', sub: "awaiting delivery" },
+      { label: 'Delivered',         value: fmt.(s['delivered_count']),   color: '#2c3e50', sub: "completed" },
+      { label: 'Rejected',          value: fmt.(s['rejected_count']),    color: '#c0392b', sub: "by Service Delivery" },
+    ]
+  %>
+  <% cards.each do |c| %>
+    <div style="padding:12px 20px; border-radius:4px; background:<%= c[:color] %>; color:#fff; min-width:120px; text-align:center; flex:1; min-width:130px;">
+      <div style="font-size:1.7em; font-weight:bold; line-height:1.1;"><%= c[:value] %></div>
+      <div style="font-size:0.78em; margin-top:2px; opacity:0.9;"><%= c[:label] %></div>
+      <div style="font-size:0.72em; margin-top:1px; opacity:0.7;"><%= c[:sub] %></div>
+    </div>
+  <% end %>
+</div>
+
+<%# ── Note on MRR ─────────────────────────────────────────────────────── %>
+<div style="margin-bottom:16px; padding:8px 14px; border-left:3px solid #d35400; background:#fdf6f0; border-radius:0 4px 4px 0; font-size:0.85em; color:#666;">
+  <strong>Diff MRR / Diff NRR</strong> — all revenue figures show <em>differential</em> (incremental) amounts from Salesforce.
+  For <strong>New Business</strong> orders this equals the full MRR. For upgrades/downgrades this shows only the net change vs the existing subscription.
+  For upgrades/downgrades, watch the <em>opportunity_type</em> column to distinguish growth from churn defence.
+</div>
+
+<%# ── Monthly trend table ─────────────────────────────────────────────── %>
+<% if @monthly.any? %>
+<div style="margin-bottom:24px;">
+  <h3 style="margin-bottom:8px;">Monthly Trend</h3>
+  <div style="overflow-x:auto;">
+    <table class="list" style="font-size:0.88em; min-width:700px;">
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th style="text-align:right;">Orders</th>
+          <th style="text-align:right;">Accounts</th>
+          <th style="text-align:right; color:#8e44ad;">New Logo Accts</th>
+          <th style="text-align:right; color:#8e44ad;">New Logo Orders</th>
+          <th style="text-align:right;">Diff MRR (K ZMW)</th>
+          <th style="text-align:right; color:#8e44ad;">New Logo MRR (K)</th>
+          <th style="text-align:right;">Diff NRR (K ZMW)</th>
+          <th style="text-align:right;">Accepted</th>
+          <th style="text-align:right;">Delivered</th>
+          <th style="text-align:right;">In Organic</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @monthly.each_with_index do |row, i| %>
+          <%
+            is_current = row['month_year'] == Time.current.strftime('%Y-%m')
+            mrr   = row['mrr_zmw'].to_f / 1000
+            nrr   = row['nrr_zmw'].to_f / 1000
+            nl_mrr = row['new_logo_mrr_zmw'].to_f / 1000
+          %>
+          <tr class="<%= i.even? ? 'odd' : 'even' %>" style="<%= is_current ? 'font-weight:bold;' : '' %>">
+            <td><%= is_current ? '&#9658; '.html_safe : '' %><%= row['month_year'] %></td>
+            <td style="text-align:right;"><%= row['total_orders'] %></td>
+            <td style="text-align:right;"><%= row['accounts'] %></td>
+            <td style="text-align:right; color:#8e44ad; font-weight:bold;"><%= row['new_logo_accounts'] %></td>
+            <td style="text-align:right; color:#8e44ad;"><%= row['new_logo_orders'] %></td>
+            <td style="text-align:right; font-weight:bold;"><%= '%.1f' % mrr %></td>
+            <td style="text-align:right; color:#8e44ad;"><%= '%.1f' % nl_mrr %></td>
+            <td style="text-align:right;"><%= '%.1f' % nrr %></td>
+            <td style="text-align:right; color:#27ae60;"><%= row['accepted_count'] %></td>
+            <td style="text-align:right; color:<%= row['delivered_count'].to_i > 0 ? '#2c3e50' : '#aaa' %>;"><%= row['delivered_count'] %></td>
+            <td style="text-align:right; color:#2980b9;"><%= row['organic_count'] %></td>
+          </tr>
+        <% end %>
+        <% # Totals row %>
+        <%
+          t_orders  = @monthly.sum { |r| r['total_orders'].to_i }
+          t_accts   = @monthly.map { |r| r['accounts'].to_i }.max || 0
+          t_nl_accts = @monthly.sum { |r| r['new_logo_accounts'].to_i }
+          t_nl_orders = @monthly.sum { |r| r['new_logo_orders'].to_i }
+          t_mrr     = @monthly.sum { |r| r['mrr_zmw'].to_f } / 1000
+          t_nl_mrr  = @monthly.sum { |r| r['new_logo_mrr_zmw'].to_f } / 1000
+          t_nrr     = @monthly.sum { |r| r['nrr_zmw'].to_f } / 1000
+          t_acc     = @monthly.sum { |r| r['accepted_count'].to_i }
+          t_del     = @monthly.sum { |r| r['delivered_count'].to_i }
+          t_org     = @monthly.sum { |r| r['organic_count'].to_i }
+        %>
+        <tr style="font-weight:bold; border-top:2px solid #666;">
+          <td>FY27 Total</td>
+          <td style="text-align:right;"><%= t_orders %></td>
+          <td style="text-align:right;">—</td>
+          <td style="text-align:right; color:#8e44ad;"><%= t_nl_accts %></td>
+          <td style="text-align:right; color:#8e44ad;"><%= t_nl_orders %></td>
+          <td style="text-align:right;"><%= '%.1f' % t_mrr %></td>
+          <td style="text-align:right; color:#8e44ad;"><%= '%.1f' % t_nl_mrr %></td>
+          <td style="text-align:right;"><%= '%.1f' % t_nrr %></td>
+          <td style="text-align:right; color:#27ae60;"><%= t_acc %></td>
+          <td style="text-align:right;"><%= t_del %></td>
+          <td style="text-align:right; color:#2980b9;"><%= t_org %></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% end %>
+
+<%# ── Filters ──────────────────────────────────────────────────────────── %>
+<%= form_tag snow_sf_pipeline_path, method: :get,
+      style: 'margin-bottom:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;' do %>
+
+  <%= label_tag :opp_type, 'Type:' %>
+  <%= select_tag :opp_type,
+        options_for_select([['All types', '']] + @opp_types.map { |t| [t, t] }, params[:opp_type]),
+        style: 'padding:3px 6px;' %>
+
+  <%= label_tag :kam, 'KAM:' %>
+  <%= select_tag :kam,
+        options_for_select([['All KAMs', '']] + @kams.map { |k| [k, k] }, params[:kam]),
+        style: 'padding:3px 6px;' %>
+
+  <%= label_tag :status, 'Status:' %>
+  <%= select_tag :status,
+        options_for_select([['All statuses', '']] + @statuses.map { |s| [s, s] }, params[:status]),
+        style: 'padding:3px 6px;' %>
+
+  <%= check_box_tag :new_logo, '1', params[:new_logo] == '1' %>
+  <%= label_tag :new_logo, 'New Logos only' %>
+
+  <%= submit_tag 'Filter', name: nil, class: 'button' %>
+  <%= link_to 'Reset', snow_sf_pipeline_path, class: 'button', style: 'margin-left:4px;' %>
+<% end %>
+
+<%# ── Pipeline table ───────────────────────────────────────────────────── %>
+<div style="overflow-x:auto;">
+  <table class="list" style="font-size:0.85em;">
+    <thead>
+      <tr>
+        <th>Account</th>
+        <th>Type</th>
+        <th>Subscription</th>
+        <th style="text-align:right;">Diff MRR</th>
+        <th style="text-align:right;">Diff NRR</th>
+        <th>Currency</th>
+        <th>SF Status</th>
+        <th>KAM</th>
+        <th>SNow Ref</th>
+        <th>In Organic</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @orders.each_with_index do |row, i| %>
+        <%
+          is_nl     = row['is_new_logo'] == 't' || row['is_new_logo'] == true
+          in_org    = row['in_organic']  == 't' || row['in_organic']  == true
+          is_del    = row['is_delivered'] == 't' || row['is_delivered'] == true
+          mrr       = row['mrr_amount'].to_f
+          nrr       = row['nrr_amount'].to_f
+          status    = row['sf_status'].to_s
+          status_color = case status
+                         when 'Service Delivered'             then '#27ae60'
+                         when 'Accepted by Service Delivery'  then '#2980b9'
+                         when 'Rejected by Service Delivery'  then '#c0392b'
+                         when 'Sent for Service Qualification' then '#e67e22'
+                         else '#888'
+                         end
+          mrr_disp  = mrr > 0 ? ActiveSupport::NumberHelper.number_to_delimited(mrr.round) : '—'
+          nrr_disp  = nrr > 0 ? ActiveSupport::NumberHelper.number_to_delimited(nrr.round) : '—'
+        %>
+        <tr class="<%= i.even? ? 'odd' : 'even' %>">
+          <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+              title="<%= h row['account_name'] %>">
+            <% if is_nl %>
+              <span style="display:inline-block; background:#8e44ad; color:#fff; font-size:0.7em; padding:1px 5px; border-radius:3px; margin-right:4px; vertical-align:middle;">NEW</span>
+            <% end %>
+            <%= h row['account_name'] %>
+          </td>
+          <td style="font-size:0.82em; white-space:nowrap; color:<%= is_nl ? '#8e44ad' : 'inherit' %>; font-weight:<%= is_nl ? 'bold' : 'normal' %>;">
+            <%= h row['opportunity_type'] %>
+          </td>
+          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.82em;"
+              title="<%= h row['subscription_name'] %>">
+            <%= h row['subscription_name'] %>
+          </td>
+          <td style="text-align:right; font-weight:<%= mrr > 0 ? 'bold' : 'normal' %>; color:<%= mrr > 0 ? '#16a085' : '#aaa' %>;">
+            <%= mrr_disp %>
+          </td>
+          <td style="text-align:right; color:<%= nrr > 0 ? '#d35400' : '#aaa' %>;">
+            <%= nrr_disp %>
+          </td>
+          <td style="text-align:center; font-size:0.8em;"><%= row['currency'] %></td>
+          <td>
+            <span style="font-size:0.78em; padding:2px 7px; border-radius:3px; background:<%= status_color %>; color:#fff; white-space:nowrap;">
+              <%= status.gsub('Service Delivery', 'SD') %>
+            </span>
+          </td>
+          <td style="font-size:0.82em; white-space:nowrap;"><%= h row['account_owner'] %></td>
+          <td style="font-size:0.8em;">
+            <% if row['snow_request_number'].present? %>
+              <code><%= h row['snow_request_number'] %></code>
+            <% else %>
+              <span style="color:#aaa;">—</span>
+            <% end %>
+          </td>
+          <td style="text-align:center;">
+            <% if in_org %>
+              <span style="color:#2980b9;" title="Linked to Organic issue">&#10003;</span>
+            <% else %>
+              <span style="color:#ddd;">&#8212;</span>
+            <% end %>
+          </td>
+          <td style="font-size:0.8em; white-space:nowrap; color:#888;">
+            <%= row['created_date'] ? Date.parse(row['created_date'].to_s).strftime('%d %b %Y') : '—' %>
+          </td>
+        </tr>
+      <% end %>
+      <% if @orders.empty? %>
+        <tr><td colspan="11" style="text-align:center; color:#888; padding:20px;">No orders match the selected filters.</td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+<% if @orders.size == 300 %>
+  <p style="font-size:0.82em; color:#888; margin-top:8px;">Showing first 300 results — use filters to narrow down.</p>
+<% end %>
+
+<div style="margin-top:20px; padding:10px; background:#f5f5f5; border-radius:4px; font-size:0.82em; color:#666;">
+  <strong>PowerBI:</strong> Use the <code>sf_pipeline</code>, <code>sf_monthly</code>, and <code>sf_accounts</code> dataflow tables.
+  <code>is_new_logo = true</code> identifies new customer wins. <code>mrr_zmw</code> / <code>nrr_zmw</code> are differential amounts in ZMW (USD converted at 27.50).
+</div>

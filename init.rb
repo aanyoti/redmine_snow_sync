@@ -39,6 +39,10 @@ Redmine::Plugin.register :redmine_snow_sync do
   menu :admin_menu, :snow_monthly_target,
        { controller: 'snow_monthly_target', action: 'index' },
        caption: 'Monthly Target'
+
+  menu :admin_menu, :snow_sf_pipeline,
+       { controller: 'snow_sf_pipeline', action: 'index' },
+       caption: 'SF Pipeline'
 end
 
 Dir[File.expand_path('lib/snow_sync/*.rb', __dir__)].sort.each { |f| require f }
@@ -63,13 +67,16 @@ ActiveSupport.on_load(:active_record) do
     after_save   :snow_sync_after_save
     after_save   :record_sla_status_change
     after_save   :record_procurement_status_change
+    after_save   :snow_sync_procurement_auto_assign
     after_create :populate_procurement_subtask
     validate     :snow_validate_pr_transition
     validate     :snow_validate_build_approval_sendback
     validate     :snow_validate_fiber_build_gate
     validate     :snow_validate_splicing_gate
+    validate     :snow_validate_service_scheduling_gate
     validate     :snow_validate_service_provisioning
     validate     :snow_validate_procurement_transitions
+    validate     :snow_validate_stage_jump
 
     private
 
@@ -158,6 +165,53 @@ ActiveSupport.on_load(:active_record) do
       if (existing_photos + new_photos).zero?
         errors.add(:base, 'At least 1 optical measurement photo is required before Service Delivery')
       end
+    end
+
+    # ── Service Scheduling → Contractor Assignment gate ──────────────────────
+    # PM must attach KMZ site plan and BOQ before handing off to contractors.
+    def snow_validate_service_scheduling_gate
+      filenames = Thread.current[:snow_service_scheduling_filenames]
+      return unless filenames
+      return unless tracker_id == 14 &&
+                    status_id_changed? &&
+                    status_id == 49 &&   # Contractor-Assignment
+                    status_id_was == 48  # Service Scheduling
+
+      all_files = attachments.map(&:filename) + filenames
+      has_kmz = all_files.any? { |f| f =~ /\.(kmz|kml)$/i || f =~ /kmz/i }
+      has_boq = all_files.any? { |f| f =~ /boq/i || f =~ /bill.{0,5}of.{0,5}quantit/i }
+      errors.add(:base, 'A KMZ/KML site plan file is required before Contractor Assignment') unless has_kmz
+      errors.add(:base, 'A BOQ (Bill of Quantities) document is required before Contractor Assignment') unless has_boq
+    end
+
+    # ── Stage jump restriction ────────────────────────────────────────────────
+    # Only Tech Lead or Admin can skip statuses in the defined workflow sequence.
+    # A "jump" is any forward move that skips 1 or more sequential steps.
+    # Fiber Build(51) → QA(52) → Splicing(57) → NOC Handover(53) → Service Delivery(59)...
+    TRACKER_14_SEQUENCE = [47, 48, 49, 50, 90, 51, 52, 57, 53, 59, 60, 61, 62, 17].freeze
+    TRACKER_18_SEQUENCE = [76, 77, 78, 79, 80, 81, 82, 83].freeze
+
+    def snow_validate_stage_jump
+      return unless status_id_changed?
+      return unless [14, 18].include?(tracker_id)
+      return unless User.current.is_a?(User) && User.current.logged?
+      return if User.current.admin?
+      return if snow_tech_lead_user?
+
+      seq      = tracker_id == 14 ? TRACKER_14_SEQUENCE : TRACKER_18_SEQUENCE
+      from_pos = seq.index(status_id_was)
+      to_pos   = seq.index(status_id)
+      return if from_pos.nil? || to_pos.nil?  # non-sequential status, always allowed
+      return if to_pos <= from_pos + 1          # normal step forward or backward move
+
+      from_name = IssueStatus.find_by(id: status_id_was)&.name || status_id_was.to_s
+      to_name   = IssueStatus.find_by(id: status_id)&.name || status_id.to_s
+      errors.add(:base, "Stage jump from '#{from_name}' to '#{to_name}' requires approval. " \
+                        "Post a comment explaining the reason and ask a Tech Lead or Admin to make this status change.")
+    end
+
+    def snow_tech_lead_user?
+      User.current.memberships.flat_map(&:roles).any? { |r| r.name == 'Tech Lead' }
     end
 
     # ── Service Delivery → Customer Handover validation ───────────────────────
@@ -307,6 +361,28 @@ ActiveSupport.on_load(:active_record) do
       Rails.logger.error "SnowSLA: hook error on issue ##{id}: #{e.message}"
     end
 
+    # ── Procurement PR Approved → auto-assign to Boas Katanga ────────────────
+    # When a Procurement subtask (tracker 17) reaches PR Approved (73),
+    # automatically reassign to Boas Katanga (id=53) for PO generation.
+    def snow_sync_procurement_auto_assign
+      return unless tracker_id == 17
+      return unless saved_change_to_status_id?
+      return unless status_id == 73  # PR Approved
+
+      boas        = User.find_by(id: 53)
+      system_user = User.where(admin: true).first
+      old_assignee = assigned_to_id
+      update_column(:assigned_to_id, 53)
+      journals.create!(user: system_user, notes: '') do |j|
+        j.details.build(property: 'attr', prop_key: 'assigned_to_id', old_value: old_assignee, value: 53)
+      end
+      journals.create!(user: system_user,
+        notes: "🔁 PR Approved — auto-assigned to *#{boas&.name || 'Boas Katanga'}* for PO Generation.")
+      Rails.logger.info "SnowSync: Procurement ##{id} PR Approved → assigned to Boas (#53)"
+    rescue => e
+      Rails.logger.error "SnowSync: procurement_auto_assign failed for ##{id}: #{e.message}"
+    end
+
     # ── Procurement subtask population ───────────────────────────────────────
     # Fires when a new Procurement subtask (tracker 17) is created.
     # Copies material CF quantities from the parent Commercial Order and assigns
@@ -325,11 +401,10 @@ ActiveSupport.on_load(:active_record) do
         cf_updates[cf_id.to_s] = val if val.present?
       end
 
-      pm_rec = SnowIssuePm.find_by(issue_id: par.id)
-      self.assigned_to_id = pm_rec.pm_user_id if pm_rec&.pm_user_id
+      self.assigned_to_id = 57  # Deborah Chisenga handles initial procurement review
       self.custom_field_values = cf_updates unless cf_updates.empty?
       save(validate: false)
-      Rails.logger.info "SnowSync: Procurement subtask ##{id} populated from parent ##{par.id} (PM=#{pm_rec&.pm_user_id})"
+      Rails.logger.info "SnowSync: Procurement subtask ##{id} populated from parent ##{par.id} (assigned to Deborah #57)"
     rescue => e
       Rails.logger.error "SnowSync: populate_procurement_subtask failed for ##{id}: #{e.message}"
     end

@@ -2,24 +2,30 @@ module SnowSync
   module IssueControllerPatch
     MATERIAL_CF_NAMES  = ['Fiber Length', 'Media Converters', 'P2P Radios', 'Routers', 'Switches', 'APs'].freeze
     OPTICAL_CF_NAMES   = ['A-End Rx Level (dBm)', 'B-End Rx Level (dBm)', 'Optical Loss (dB)'].freeze
-    TRACKER_ID         = 14  # Commercial Orders
-    PROCUREMENT_TRACKER = 17 # Procurement
-    CONTRACTOR_ASGN    = 49  # Contractor-Assignment
-    PURCHASE_REQ       = 50  # Purchase-Requisition
-    FIBER_BUILD        = 51  # Fiber Build
-    QUALITY_ASSURANCE  = 52  # Quality Assurance
-    SPLICING           = 57  # Splicing
-    SERVICE_DELIVERY   = 59  # Service Delivery
-    BUILD_APPROVAL     = 90  # Build Approval
-    PR_RAISED          = 72  # Procurement: PR Raised
-    PO_GENERATED       = 74  # Procurement: PO Generated
-    PROC_CLOSED        = 75  # Procurement: Procurement Closed
+    TRACKER_ID          = 14  # Commercial Orders
+    PROCUREMENT_TRACKER = 17  # Procurement
+    SERVICE_SCHEDULING  = 48  # Service Scheduling
+    CONTRACTOR_ASGN     = 49  # Contractor-Assignment
+    PURCHASE_REQ        = 50  # Purchase-Requisition
+    FIBER_BUILD         = 51  # Fiber Build
+    QUALITY_ASSURANCE   = 52  # Quality Assurance
+    SPLICING            = 57  # Splicing
+    SERVICE_DELIVERY    = 59  # Service Delivery
+    BUILD_APPROVAL      = 90  # Build Approval
+    PR_RAISED           = 72  # Procurement: PR Raised
+    PO_GENERATED        = 74  # Procurement: PO Generated
+    PROC_CLOSED         = 75  # Procurement: Procurement Closed
 
     def update
       if @issue
         new_status = params.dig(:issue, :status_id).to_i
 
         if @issue.tracker_id == TRACKER_ID
+          # Gate 0: Service Scheduling → Contractor Assignment (KMZ + BOQ required)
+          if @issue.status_id == SERVICE_SCHEDULING && new_status == CONTRACTOR_ASGN
+            Thread.current[:snow_service_scheduling_filenames] = attachment_filenames_from_params
+          end
+
           # Gate 1: Purchase-Requisition → Build Approval (contractor must have filled CFs + photos + PDF)
           if @issue.status_id == PURCHASE_REQ && new_status == BUILD_APPROVAL
             Thread.current[:snow_pr_filenames] = attachment_filenames_from_params
@@ -57,12 +63,13 @@ module SnowSync
       begin
         super
       ensure
-        Thread.current[:snow_pr_filenames]            = nil
-        Thread.current[:snow_build_approval_sendback] = nil
-        Thread.current[:snow_procurement_pr_ref]      = nil
-        Thread.current[:snow_po_filenames]            = nil
-        Thread.current[:snow_fiber_build_filenames]   = nil
-        Thread.current[:snow_splicing_filenames]      = nil
+        Thread.current[:snow_service_scheduling_filenames] = nil
+        Thread.current[:snow_pr_filenames]                = nil
+        Thread.current[:snow_build_approval_sendback]     = nil
+        Thread.current[:snow_procurement_pr_ref]          = nil
+        Thread.current[:snow_po_filenames]                = nil
+        Thread.current[:snow_fiber_build_filenames]       = nil
+        Thread.current[:snow_splicing_filenames]          = nil
       end
     end
 

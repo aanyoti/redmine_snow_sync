@@ -4,19 +4,33 @@ class SnowPowerbiController < ApplicationController
   before_action :authenticate_token
 
   VIEWS = {
-    'dim_status'            => 'vw_dim_status',
-    'dim_tracker'           => 'vw_dim_tracker',
-    'dim_user'              => 'vw_dim_user',
-    'dim_version'           => 'vw_dim_version',
-    'fact_issues'           => 'vw_fact_issues',
-    'fact_commercial_orders'=> 'vw_fact_commercial_orders',
-    'fact_c2_orders'        => 'vw_fact_c2_orders',
-    'fact_procurement'      => 'vw_fact_procurement',
-    'fact_all_orders'       => 'vw_fact_all_orders',
-    'fact_status_history'   => 'vw_fact_status_history',
-    'fact_sla'              => 'vw_fact_sla',
-    'fact_monthly_targets'  => 'vw_fact_monthly_targets',
+    # ── Organic (Redmine delivery) ──────────────────────────────
+    'dim_status'             => 'vw_dim_status',
+    'dim_tracker'            => 'vw_dim_tracker',
+    'dim_user'               => 'vw_dim_user',
+    'dim_version'            => 'vw_dim_version',
+    'fact_issues'            => 'vw_fact_issues',
+    'fact_commercial_orders' => 'vw_fact_commercial_orders',
+    'fact_c2_orders'         => 'vw_fact_c2_orders',
+    'fact_procurement'       => 'vw_fact_procurement',
+    'fact_all_orders'        => 'vw_fact_all_orders',
+    'fact_status_history'    => 'vw_fact_status_history',
+    'fact_sla'               => 'vw_fact_sla',
+    'fact_monthly_targets'   => 'vw_fact_monthly_targets',
+    # ── Salesforce (CRM pipeline) ───────────────────────────────
+    'sf_pipeline'            => 'vw_sf_pipeline',
+    'sf_accounts'            => 'vw_sf_accounts',
+    'sf_by_kam'              => 'vw_sf_by_kam',
+    'sf_monthly'             => 'vw_sf_monthly',
+    'sf_delivery_bridge'     => 'vw_sf_delivery_bridge',
+    'sf_delivery_gap'        => 'vw_sf_delivery_gap',
   }.freeze
+
+  # Fact tables that support ?updated_since incremental refresh
+  INCREMENTAL_VIEWS = %w[
+    vw_fact_issues vw_fact_commercial_orders vw_fact_c2_orders
+    vw_fact_procurement vw_fact_all_orders vw_sf_pipeline
+  ].freeze
 
   # GET /api/powerbi/:dataset
   def dataset
@@ -32,10 +46,10 @@ class SnowPowerbiController < ApplicationController
     # Optional incremental refresh — ?updated_since=2026-01-01
     if params[:updated_since].present?
       since = Time.parse(params[:updated_since]) rescue nil
-      if since && %w[vw_fact_issues vw_fact_commercial_orders vw_fact_c2_orders
-                     vw_fact_procurement vw_fact_all_orders].include?(view)
+      if since && INCREMENTAL_VIEWS.include?(view)
+        date_col = view == 'vw_sf_pipeline' ? 'synced_at' : 'updated_date'
         sql += ActiveRecord::Base.sanitize_sql_array(
-          [" WHERE updated_date >= ?", since.utc.to_date]
+          [" WHERE #{date_col} >= ?", since.utc.to_date]
         )
       end
     end
@@ -49,6 +63,7 @@ class SnowPowerbiController < ApplicationController
       dataset:      params[:dataset],
       row_count:    rows.count,
       generated_at: Time.current.iso8601,
+      columns:      rows.columns,
       data:         rows.to_a
     }
   rescue => e
@@ -69,11 +84,21 @@ class SnowPowerbiController < ApplicationController
   private
 
   def authenticate_token
-    token     = Setting.plugin_redmine_snow_sync['webhook_token'].to_s.strip
-    provided  = request.headers['X-Webhook-Token'].to_s.strip
-    unless token.present? && ActiveSupport::SecurityUtils.secure_compare(token, provided)
-      render json: { error: 'Unauthorized — provide X-Webhook-Token header' },
-             status: :unauthorized
+    token = Setting.plugin_redmine_snow_sync['webhook_token'].to_s.strip
+
+    # X-Webhook-Token header (existing integrations — cron, Power Automate)
+    provided = request.headers['X-Webhook-Token'].to_s.strip
+
+    # HTTP Basic Auth password (PowerBI Service credential store)
+    if provided.blank? && request.headers['Authorization'].present?
+      _, provided = ActionController::HttpAuthentication::Basic.user_name_and_password(request) rescue [nil, nil]
+      provided = provided.to_s.strip
+    end
+
+    unless token.present? && provided.present? &&
+           ActiveSupport::SecurityUtils.secure_compare(token, provided)
+      response.headers['WWW-Authenticate'] = 'Basic realm="PowerBI API"'
+      render json: { error: 'Unauthorized' }, status: :unauthorized
     end
   end
 end
