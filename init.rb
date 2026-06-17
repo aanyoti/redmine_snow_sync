@@ -69,9 +69,8 @@ ActiveSupport.on_load(:active_record) do
     after_save   :record_procurement_status_change
     after_save   :snow_sync_procurement_auto_assign
     after_create :populate_procurement_subtask
-    validate     :snow_validate_pr_transition
+    validate     :snow_validate_site_survey_gate
     validate     :snow_validate_build_approval_sendback
-    validate     :snow_validate_fiber_build_gate
     validate     :snow_validate_splicing_gate
     validate     :snow_validate_service_scheduling_gate
     validate     :snow_validate_service_provisioning
@@ -80,35 +79,38 @@ ActiveSupport.on_load(:active_record) do
 
     private
 
-    # ── Build Approval gate validation ────────────────────────────────────────
-    # Runs on every save; only active during Purchase-Requisition → Build Approval transition
-    # (thread-local set by IssueControllerPatch#update)
-    def snow_validate_pr_transition
-      filenames = Thread.current[:snow_pr_filenames]
+    # ── Site Survey gate validation ───────────────────────────────────────────
+    # Contractor must fill 6 material CFs, attach ≥5 site photos + 1 PDF quote
+    # before the issue can move from Site Survey to Purchase Requisition.
+    def snow_validate_site_survey_gate
+      filenames = Thread.current[:snow_site_survey_filenames]
       return unless filenames  # not a guarded transition
 
       return unless tracker_id == 14 &&
                     status_id_changed? &&
-                    status_id == 90 &&   # Build Approval
-                    status_id_was == 50  # Purchase-Requisition
+                    status_id == 50 &&   # Purchase-Requisition
+                    status_id_was == 24  # Site Survey
 
       # 1. All material CFs must be filled in
       SnowSync::IssueControllerPatch::MATERIAL_CF_NAMES.each do |cf_name|
         cf  = IssueCustomField.find_by(name: cf_name)
         next unless cf
         val = custom_field_value(cf.id.to_s).to_s.strip
-        errors.add(:base, "#{cf_name} is required before submitting for Build Approval") if val.blank?
+        errors.add(:base, "#{cf_name} is required before submitting for Purchase Requisition") if val.blank?
       end
 
-      # 2. At least 5 photos (jpg / png)
-      photos = filenames.count { |f| f =~ /\.(jpg|jpeg|png)$/i }
-      if photos < 5
-        errors.add(:base, "At least 5 site photos (JPG/PNG) are required — #{photos} attached")
+      # 2. At least 5 site photos (jpg / png)
+      existing_photos = attachments.count { |a| a.filename =~ /\.(jpg|jpeg|png)$/i }
+      new_photos      = filenames.count   { |f| f =~ /\.(jpg|jpeg|png)$/i }
+      total_photos    = existing_photos + new_photos
+      if total_photos < 5
+        errors.add(:base, "At least 5 site photos (JPG/PNG) are required — #{total_photos} attached")
       end
 
       # 3. At least 1 PDF quote
-      pdfs = filenames.count { |f| f =~ /\.pdf$/i }
-      errors.add(:base, 'A contractor quote (PDF) must be attached') if pdfs.zero?
+      existing_pdfs = attachments.count { |a| a.filename =~ /\.pdf$/i }
+      new_pdfs      = filenames.count   { |f| f =~ /\.pdf$/i }
+      errors.add(:base, 'A contractor quote (PDF) must be attached') if (existing_pdfs + new_pdfs).zero?
     end
 
     # ── Build Approval send-back validation ───────────────────────────────────
@@ -122,24 +124,6 @@ ActiveSupport.on_load(:active_record) do
       notes = current_journal&.notes.to_s.strip
       if notes.blank?
         errors.add(:base, 'A comment explaining what needs to be corrected is required when sending back for revision')
-      end
-    end
-
-    # ── Fiber Build → Quality Assurance gate ─────────────────────────────────
-    # Contractor must attach ≥5 build photos before QA hand-off.
-    def snow_validate_fiber_build_gate
-      filenames = Thread.current[:snow_fiber_build_filenames]
-      return unless filenames
-      return unless tracker_id == 14 &&
-                    status_id_changed? &&
-                    status_id == 52 &&   # Quality Assurance
-                    status_id_was == 51  # Fiber Build
-
-      existing_photos = attachments.count { |a| a.filename =~ /\.(jpg|jpeg|png)$/i }
-      new_photos      = filenames.count    { |f| f =~ /\.(jpg|jpeg|png)$/i }
-      total = existing_photos + new_photos
-      if total < 5
-        errors.add(:base, "At least 5 build photos (JPG/PNG) are required before Quality Assurance — #{total} attached")
       end
     end
 
@@ -187,8 +171,8 @@ ActiveSupport.on_load(:active_record) do
     # ── Stage jump restriction ────────────────────────────────────────────────
     # Only Tech Lead or Admin can skip statuses in the defined workflow sequence.
     # A "jump" is any forward move that skips 1 or more sequential steps.
-    # Fiber Build(51) → QA(52) → Splicing(57) → NOC Handover(53) → Service Delivery(59)...
-    TRACKER_14_SEQUENCE = [47, 48, 49, 50, 90, 51, 52, 57, 53, 59, 60, 61, 62, 17].freeze
+    # SRR(47) → SS(48) → CA(49) → SiteSurvey(24) → PR(50) → BA(90) → FB(51) → Splicing(57) → SD(59) → CH(60) → BN(61) → Sub(62) → Closed(17)
+    TRACKER_14_SEQUENCE = [47, 48, 49, 24, 50, 90, 51, 57, 59, 60, 61, 62, 17].freeze
     TRACKER_18_SEQUENCE = [76, 77, 78, 79, 80, 81, 82, 83].freeze
 
     def snow_validate_stage_jump
@@ -266,6 +250,22 @@ ActiveSupport.on_load(:active_record) do
         journals.create!(user: sys_user,
           notes: "🔁 Auto-assigned to *#{boas&.name || 'Boas Katanga'}* to select a contractor.")
         Rails.logger.info "SnowSync: issue ##{id} → Contractor-Assignment (PM ##{pm_id} stored, assigned to Boas)"
+
+      # Site Survey → Purchase Requisition: assign to the stored PM for review
+      elsif status_id == 50 && status_id_was == 24
+        pm_rec      = SnowIssuePm.find_by(issue_id: id)
+        pm          = pm_rec&.pm_user_id ? User.find_by(id: pm_rec.pm_user_id) : nil
+        pm_id       = pm&.id || 17  # fallback to Musonda if PM not recorded
+        system_user = User.where(admin: true).first
+        old_assignee = assigned_to_id
+        update_column(:assigned_to_id, pm_id)
+        journals.create!(user: system_user, notes: '') do |j|
+          j.details.build(property: 'attr', prop_key: 'assigned_to_id',
+                          old_value: old_assignee, value: pm_id)
+        end
+        journals.create!(user: system_user,
+          notes: "🔁 Site Survey complete — auto-assigned to PM *#{pm&.name || 'Project Manager'}* for Purchase Requisition.")
+        Rails.logger.info "SnowSync: issue ##{id} → Purchase Requisition (assigned to PM ##{pm_id})"
 
       # Build Approval: store contractor, assign to stored PM
       elsif status_id == 90

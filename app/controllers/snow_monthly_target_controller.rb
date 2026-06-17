@@ -44,10 +44,10 @@ class SnowMonthlyTargetController < ApplicationController
     month_str = '%04d-%02d' % [@year, @month]
     conn = ActiveRecord::Base.connection
     @sf_month = conn.select_one(
-      conn.sanitize_sql_array(["SELECT * FROM vw_sf_monthly WHERE month_year = ?", month_str])
+      ActiveRecord::Base.sanitize_sql_array(["SELECT * FROM vw_sf_monthly WHERE month_year = ?", month_str])
     )
     @sf_new_logos = conn.select_all(
-      conn.sanitize_sql_array([<<~SQL, month_str])
+      ActiveRecord::Base.sanitize_sql_array([<<~SQL, month_str])
         SELECT account_name, account_owner,
                COUNT(*) AS sub_count,
                SUM(mrr_zmw)::numeric(14,0) AS mrr_zmw,

@@ -6,9 +6,9 @@ module SnowSync
     PROCUREMENT_TRACKER = 17  # Procurement
     SERVICE_SCHEDULING  = 48  # Service Scheduling
     CONTRACTOR_ASGN     = 49  # Contractor-Assignment
+    SITE_SURVEY         = 24  # Site Survey
     PURCHASE_REQ        = 50  # Purchase-Requisition
     FIBER_BUILD         = 51  # Fiber Build
-    QUALITY_ASSURANCE   = 52  # Quality Assurance
     SPLICING            = 57  # Splicing
     SERVICE_DELIVERY    = 59  # Service Delivery
     BUILD_APPROVAL      = 90  # Build Approval
@@ -26,19 +26,14 @@ module SnowSync
             Thread.current[:snow_service_scheduling_filenames] = attachment_filenames_from_params
           end
 
-          # Gate 1: Purchase-Requisition → Build Approval (contractor must have filled CFs + photos + PDF)
-          if @issue.status_id == PURCHASE_REQ && new_status == BUILD_APPROVAL
-            Thread.current[:snow_pr_filenames] = attachment_filenames_from_params
+          # Gate 1: Site Survey → Purchase Requisition (contractor must fill CFs + photos + PDF)
+          if @issue.status_id == SITE_SURVEY && new_status == PURCHASE_REQ
+            Thread.current[:snow_site_survey_filenames] = attachment_filenames_from_params
           end
 
           # Gate 2: Build Approval → Purchase-Requisition (send-back requires comment)
           if @issue.status_id == BUILD_APPROVAL && new_status == PURCHASE_REQ
             Thread.current[:snow_build_approval_sendback] = @issue.id
-          end
-
-          # Gate 5: Fiber Build → Quality Assurance (min 5 photos required)
-          if @issue.status_id == FIBER_BUILD && new_status == QUALITY_ASSURANCE
-            Thread.current[:snow_fiber_build_filenames] = attachment_filenames_from_params
           end
 
           # Gate 6: Splicing → Service Delivery (optical CFs + photo required)
@@ -64,11 +59,10 @@ module SnowSync
         super
       ensure
         Thread.current[:snow_service_scheduling_filenames] = nil
-        Thread.current[:snow_pr_filenames]                = nil
+        Thread.current[:snow_site_survey_filenames]       = nil
         Thread.current[:snow_build_approval_sendback]     = nil
         Thread.current[:snow_procurement_pr_ref]          = nil
         Thread.current[:snow_po_filenames]                = nil
-        Thread.current[:snow_fiber_build_filenames]       = nil
         Thread.current[:snow_splicing_filenames]          = nil
       end
     end
