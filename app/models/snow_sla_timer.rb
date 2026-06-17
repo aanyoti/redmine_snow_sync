@@ -21,6 +21,12 @@ class SnowSlaTimer < ActiveRecord::Base
     'Customer Handover'        => 2,
     'Billing Notification'     => 2,
     'Submitted'                => 1,
+    # ── Procurement Subtask (Tracker 17) — 8 days total ──────────────────────
+    'Quote Pending'              => 3,   # Deborah reviews scope and raises PR
+    'PR Raised'                  => 2,   # Finance / management approves PR
+    'PR Approved'                => 1,   # Boas generates PO
+    'PO Generated'               => 2,   # PO document attached and closed
+    'P-Returned for Correction'  => 2,   # Deborah corrects and resubmits
     # ── C2 (Tracker 18) ──────────────────────────────────────────────────────
     'C2 - Service Request Review'  => 2,
     'C2 - Technical Assessment'    => 3,
