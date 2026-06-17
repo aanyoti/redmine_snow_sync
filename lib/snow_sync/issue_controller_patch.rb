@@ -9,6 +9,7 @@ module SnowSync
     SITE_SURVEY         = 24  # Site Survey
     PURCHASE_REQ        = 50  # Purchase-Requisition
     FIBER_BUILD         = 51  # Fiber Build
+    QUALITY_ASSURANCE   = 52  # Quality Assurance
     SPLICING            = 57  # Splicing
     SERVICE_DELIVERY    = 59  # Service Delivery
     BUILD_APPROVAL      = 90  # Build Approval
@@ -36,8 +37,8 @@ module SnowSync
             Thread.current[:snow_build_approval_sendback] = @issue.id
           end
 
-          # Gate 6: Splicing → Service Delivery (optical CFs + photo required)
-          if @issue.status_id == SPLICING && new_status == SERVICE_DELIVERY
+          # Gate 6: Splicing → Quality Assurance (optical CFs + photo required)
+          if @issue.status_id == SPLICING && new_status == QUALITY_ASSURANCE
             Thread.current[:snow_splicing_filenames] = attachment_filenames_from_params
           end
         end

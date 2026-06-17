@@ -15,11 +15,11 @@ module SnowSync
 
     # A-B end termination CFs — only visible from Service Delivery (59) onwards.
     AB_CF_IDS        = [98, 99, 100, 101, 102, 103, 104, 105].freeze
-    AB_SHOW_STATUSES = [59, 60, 61, 62, 17].freeze
+    AB_SHOW_STATUSES = [59, 53, 60, 61, 62, 17].freeze
 
     # Optical measurement CFs — only visible from Splicing (57) onwards.
     OPTICAL_CF_IDS        = [106, 107, 108].freeze
-    OPTICAL_SHOW_STATUSES = [57, 59, 60, 61, 62, 17].freeze
+    OPTICAL_SHOW_STATUSES = [57, 52, 59, 53, 60, 61, 62, 17].freeze
 
     # Project Code CF — visible from Service Scheduling (48) onwards; hidden at Service Request Review.
     PROJECT_CODE_CF_IDS        = [109].freeze

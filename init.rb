@@ -127,27 +127,27 @@ ActiveSupport.on_load(:active_record) do
       end
     end
 
-    # ── Splicing → Service Delivery gate ─────────────────────────────────────
+    # ── Splicing → Quality Assurance gate ────────────────────────────────────
     # Requires optical measurement CFs filled and ≥1 measurement photo.
     def snow_validate_splicing_gate
       filenames = Thread.current[:snow_splicing_filenames]
       return unless filenames
       return unless tracker_id == 14 &&
                     status_id_changed? &&
-                    status_id == 59 &&   # Service Delivery
+                    status_id == 52 &&   # Quality Assurance
                     status_id_was == 57  # Splicing
 
       SnowSync::IssueControllerPatch::OPTICAL_CF_NAMES.each do |cf_name|
         cf  = IssueCustomField.find_by(name: cf_name)
         next unless cf
         val = custom_field_value(cf.id.to_s).to_s.strip
-        errors.add(:base, "#{cf_name} is required before moving to Service Delivery") if val.blank?
+        errors.add(:base, "#{cf_name} is required before Quality Assurance") if val.blank?
       end
 
       existing_photos = attachments.count { |a| a.filename =~ /\.(jpg|jpeg|png)$/i }
       new_photos      = filenames.count    { |f| f =~ /\.(jpg|jpeg|png)$/i }
       if (existing_photos + new_photos).zero?
-        errors.add(:base, 'At least 1 optical measurement photo is required before Service Delivery')
+        errors.add(:base, 'At least 1 optical measurement photo is required before Quality Assurance')
       end
     end
 
@@ -171,8 +171,8 @@ ActiveSupport.on_load(:active_record) do
     # ── Stage jump restriction ────────────────────────────────────────────────
     # Only Tech Lead or Admin can skip statuses in the defined workflow sequence.
     # A "jump" is any forward move that skips 1 or more sequential steps.
-    # SRR(47) → SS(48) → CA(49) → SiteSurvey(24) → PR(50) → BA(90) → FB(51) → Splicing(57) → SD(59) → CH(60) → BN(61) → Sub(62) → Closed(17)
-    TRACKER_14_SEQUENCE = [47, 48, 49, 24, 50, 90, 51, 57, 59, 60, 61, 62, 17].freeze
+    # SRR(47)→SS(48)→CA(49)→SiteSurvey(24)→PR(50)→BA(90)→FB(51)→Splicing(57)→QA(52)→SD(59)→NOC(53)→CH(60)→BN(61)→Sub(62)→Closed(17)
+    TRACKER_14_SEQUENCE = [47, 48, 49, 24, 50, 90, 51, 57, 52, 59, 53, 60, 61, 62, 17].freeze
     TRACKER_18_SEQUENCE = [76, 77, 78, 79, 80, 81, 82, 83].freeze
 
     def snow_validate_stage_jump

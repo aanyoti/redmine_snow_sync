@@ -3,7 +3,7 @@ class SnowSlaTimer < ActiveRecord::Base
   belongs_to :status, class_name: 'IssueStatus'
 
   # Default SLA targets (days) — overridden by Admin → ServiceNow Sync settings.
-  # MTTI budget: 10 (pre-build) + 7 (build) + 10 (post-build) = 27 days
+  # MTTI budget: 10 (pre-build) + 7 (build) + 13 (post-build) = 30 days
   DEFAULT_SLA_DAYS = {
     # ── Commercial Orders (Tracker 14) — Pre-Build (10 days) ─────────────────
     'Service Request Review'   => 1,
@@ -14,9 +14,11 @@ class SnowSlaTimer < ActiveRecord::Base
     'Build Approval'           => 1,
     # ── Build (7 days) ───────────────────────────────────────────────────────
     'Fiber Build'              => 7,
-    # ── Post-Build (10 days) ─────────────────────────────────────────────────
+    # ── Post-Build (13 days) ─────────────────────────────────────────────────
     'Splicing'                 => 2,
+    'Quality Assurance'        => 2,
     'Service Delivery'         => 3,
+    'NOC Handover'             => 1,
     'Customer Handover'        => 2,
     'Billing Notification'     => 2,
     'Submitted'                => 1,
