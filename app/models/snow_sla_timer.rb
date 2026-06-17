@@ -2,23 +2,32 @@ class SnowSlaTimer < ActiveRecord::Base
   belongs_to :issue
   belongs_to :status, class_name: 'IssueStatus'
 
-  # Default SLA targets — overridden by Admin → ServiceNow Sync settings.
+  # Default SLA targets (days) — overridden by Admin → ServiceNow Sync settings.
+  # MTTI budget: 7 (pre-build) + 7 (build) + 13 (post-build) = 27 days
   DEFAULT_SLA_DAYS = {
-    'Service Request Review'        => 2,
-    'Service Scheduling'            => 1,
-    'Contractor-Assignment'         => 3,
-    'Purchase-Requisition'          => 5,
-    'Build Approval'                => 2,
-    'Fiber Build'                   => 14,
-    'Pending Approval Project'      => 3,
-    'Handover Project'              => 3,
-    'Requires Sign-off Project'     => 2,
-    'C2 - Service Request Review'   => 2,
-    'C2 - Technical Assessment'     => 3,
-    'C2 - Provisioning'             => 5,
-    'C2 - Configuration & Testing'  => 3,
-    'C2 - UAT'                      => 2,
-    'C2 - Handover'                 => 2,
+    # ── Commercial Orders (Tracker 14) — Pre-Build (7 days) ──────────────────
+    'Service Request Review'   => 1,
+    'Service Scheduling'       => 1,
+    'Contractor-Assignment'    => 1,
+    'Purchase-Requisition'     => 3,
+    'Build Approval'           => 1,
+    # ── Build (7 days) ───────────────────────────────────────────────────────
+    'Fiber Build'              => 7,
+    # ── Post-Build (13 days) ─────────────────────────────────────────────────
+    'Quality Assurance'        => 2,
+    'Splicing'                 => 2,
+    'NOC Handover'             => 1,
+    'Service Delivery'         => 3,
+    'Customer Handover'        => 2,
+    'Billing Notification'     => 2,
+    'Submitted'                => 1,
+    # ── C2 (Tracker 18) ──────────────────────────────────────────────────────
+    'C2 - Service Request Review'  => 2,
+    'C2 - Technical Assessment'    => 3,
+    'C2 - Provisioning'            => 5,
+    'C2 - Configuration & Testing' => 3,
+    'C2 - UAT'                     => 2,
+    'C2 - Handover'                => 2,
   }.freeze
 
   def self.sla_days
