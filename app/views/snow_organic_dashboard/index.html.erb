@@ -1,0 +1,2128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LITZM Service Delivery</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --navy:#1a3a6b; --blue:#273c88; --mid:#3a5cbf; --light:#e8edf8;
+  --green:#16a34a; --amber:#d97706; --red:#dc2626; --purple:#7c3aed; --teal:#0891b2;
+  --bg:#f0f2f8; --card:#ffffff; --text:#1e293b; --muted:#64748b; --border:#dde3f0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;}
+.header{background:linear-gradient(135deg,var(--navy) 0%,var(--blue) 60%,var(--mid) 100%);color:#fff;
+  padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:52px;
+  position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.3);}
+.logo{font-size:20px;font-weight:800;letter-spacing:-.5px;}
+.logo span{color:#60a5fa;}
+.header-meta{font-size:11px;opacity:.75;margin-top:1px;}
+.header-right{display:flex;align-items:center;gap:14px;font-size:11px;opacity:.85;}
+.pill{background:rgba(255,255,255,.15);border-radius:20px;padding:3px 10px;}
+.nav-groups{background:#111827;display:flex;padding:0 24px;gap:2px;}
+.nav-group-btn{padding:8px 18px;font-size:11px;font-weight:700;cursor:pointer;
+  color:rgba(255,255,255,.5);border:none;border-bottom:3px solid transparent;
+  text-transform:uppercase;letter-spacing:.8px;background:none;transition:all .2s;}
+.nav-group-btn:hover{color:#fff;}
+.nav-group-btn.active{color:#60a5fa;border-bottom-color:#60a5fa;}
+.nav-group-sep{width:1px;background:rgba(255,255,255,.1);margin:6px 4px;}
+.nav-tabs{background:var(--navy);display:flex;padding:0 24px;gap:1px;border-bottom:1px solid rgba(255,255,255,.08);}
+.nav-tab{padding:8px 16px;font-size:11px;font-weight:600;cursor:pointer;display:none;
+  color:rgba(255,255,255,.55);border:none;border-bottom:3px solid transparent;
+  text-transform:uppercase;letter-spacing:.4px;background:none;transition:all .2s;}
+.nav-tab.group-visible{display:block;}
+.nav-tab:hover{color:#fff;}
+.nav-tab.active{color:#93c5fd;border-bottom-color:#93c5fd;}
+.filter-bar{background:var(--card);border-bottom:1px solid var(--border);
+  padding:8px 24px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.fl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.filter-bar select,.filter-bar input[type=date]{border:1px solid var(--border);border-radius:6px;padding:5px 9px;
+  font-size:11px;color:var(--text);background:#fff;cursor:pointer;outline:none;}
+.filter-bar select:focus,.filter-bar input[type=date]:focus{border-color:var(--mid);}
+.fsep{height:18px;width:1px;background:var(--border);}
+.fbtn{padding:5px 12px;border-radius:6px;border:1px solid var(--mid);
+  color:var(--mid);font-size:11px;font-weight:600;cursor:pointer;background:none;}
+.fbtn:hover{background:var(--mid);color:#fff;}
+.fhint{font-size:10px;color:var(--muted);margin-left:auto;}
+.page{display:none;padding:20px 24px;max-width:1600px;}
+.page.active{display:block;}
+.section-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:12px;margin-bottom:20px;}
+.kpi{background:var(--card);border-radius:10px;padding:16px 18px;border-left:4px solid var(--mid);
+  box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;transition:transform .15s,box-shadow .15s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(0,0,0,.10);}
+.kpi.green{border-left-color:var(--green);}.kpi.amber{border-left-color:var(--amber);}
+.kpi.red{border-left-color:var(--red);}.kpi.purple{border-left-color:var(--purple);}.kpi.teal{border-left-color:var(--teal);}
+.kpi-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+.kpi-value{font-size:26px;font-weight:800;color:var(--navy);line-height:1;}
+.kpi-value.green{color:var(--green);}.kpi-value.amber{color:var(--amber);}
+.kpi-value.red{color:var(--red);}.kpi-value.purple{color:var(--purple);}.kpi-value.teal{color:var(--teal);}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:5px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px;}
+.g32{display:grid;grid-template-columns:3fr 2fr;gap:14px;margin-bottom:16px;}
+.g23{display:grid;grid-template-columns:2fr 3fr;gap:14px;margin-bottom:16px;}
+.chart-card{background:var(--card);border-radius:10px;padding:16px 18px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid var(--border);}
+.chart-card.accent{border-top:3px solid var(--mid);}
+.chart-card.accent-green{border-top:3px solid var(--green);}
+.chart-card.accent-red{border-top:3px solid var(--red);}
+.chart-card.accent-amber{border-top:3px solid var(--amber);}
+.ch{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;}
+.ct{font-size:13px;font-weight:700;color:var(--navy);}
+.cd{font-size:10px;color:var(--muted);margin-top:2px;}
+.cbadge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--light);color:var(--blue);}
+.cw{position:relative;}
+.badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap;}
+.bb{background:#dbeafe;color:#1d4ed8;}.bg{background:#dcfce7;color:#15803d;}
+.ba{background:#fef3c7;color:#b45309;}.br{background:#fee2e2;color:#b91c1c;}
+.bp{background:#ede9fe;color:#6d28d9;}.bt{background:#cffafe;color:#0e7490;}
+.bk{background:#f1f5f9;color:#475569;}
+.tbl{overflow-x:auto;border-radius:8px;border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:11px;}
+thead th{background:var(--navy);color:#fff;padding:8px 10px;text-align:left;
+  font-weight:600;font-size:10px;letter-spacing:.3px;white-space:nowrap;}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;}
+tbody tr:hover{background:var(--light);}
+tbody td{padding:7px 10px;}
+tbody tr:last-child{border-bottom:none;}
+.prow{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.plabel{font-size:11px;min-width:170px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pbar{flex:1;height:7px;background:var(--light);border-radius:4px;overflow:hidden;}
+.pfill{height:100%;background:var(--mid);border-radius:4px;}
+.pfill.green{background:var(--green);}.pfill.red{background:var(--red);}
+.pval{font-size:10px;color:var(--muted);min-width:55px;text-align:right;font-weight:600;}
+.sla-bar{display:flex;height:22px;border-radius:6px;overflow:hidden;}
+.sla-ok{background:var(--green);display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:10px;font-weight:700;}
+.sla-breach{background:var(--red);display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:10px;font-weight:700;}
+.funnel{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0;}
+.funnel-step{display:flex;width:100%;max-width:600px;align-items:center;gap:10px;}
+.funnel-bar-wrap{flex:1;height:34px;background:var(--light);border-radius:4px;overflow:hidden;position:relative;}
+.funnel-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:10px;
+  color:#fff;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;}
+.funnel-label{min-width:200px;font-size:11px;font-weight:600;text-align:right;}
+.funnel-val{min-width:70px;font-size:13px;font-weight:800;color:var(--navy);}
+.funnel-pct{min-width:40px;font-size:10px;color:var(--muted);}
+.tip{background:linear-gradient(135deg,#eff6ff,#e0ecff);border:1px solid #bfdbfe;
+  border-left:4px solid #3b82f6;border-radius:8px;padding:10px 14px;margin-bottom:14px;
+  display:flex;gap:10px;align-items:flex-start;}
+.tip-icon{font-size:16px;flex-shrink:0;}
+.tip-title{font-size:11px;font-weight:700;color:#1e40af;margin-bottom:2px;}
+.tip-text{font-size:10px;color:#1d4ed8;line-height:1.5;}
+.tip-text code{background:rgba(255,255,255,.7);padding:1px 4px;border-radius:3px;font-size:9px;}
+.gap-alert{background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px solid #fcd34d;
+  border-left:4px solid var(--amber);border-radius:8px;padding:12px 16px;margin-bottom:16px;
+  display:flex;gap:12px;align-items:flex-start;}
+.dt-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);
+  z-index:200;align-items:center;justify-content:center;}
+.dt-overlay.open{display:flex;}
+.dt-panel{background:var(--card);border-radius:12px;width:92vw;max-width:960px;
+  max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+.dt-hdr{background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;
+  padding:14px 22px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;}
+.dt-title{font-size:13px;font-weight:700;}
+.dt-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:26px;height:26px;
+  border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;}
+.dt-body{flex:1;overflow-y:auto;padding:18px 22px;}
+.dt-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+.dt-kpi{background:var(--light);border-radius:8px;padding:10px 14px;text-align:center;}
+.dt-kpi-val{font-size:18px;font-weight:800;color:var(--navy);}
+.dt-kpi-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px;}
+@media(max-width:900px){.g2,.g3,.g32,.g23{grid-template-columns:1fr;}.dt-kpis{grid-template-columns:repeat(2,1fr);}}
+@keyframes spin{to{transform:rotate(360deg);}}
+.ms{position:relative;display:inline-block;}
+.ms-btn{border:1px solid var(--border);border-radius:6px;padding:5px 9px;font-size:11px;
+  color:var(--text);background:#fff;cursor:pointer;white-space:nowrap;outline:none;
+  display:flex;align-items:center;gap:5px;}
+.ms-btn::after{content:'▾';font-size:9px;color:var(--muted);margin-left:2px;}
+.ms-btn:hover{border-color:var(--mid);}
+.ms-btn.has-sel{border-color:var(--mid);background:var(--light);color:var(--blue);font-weight:700;}
+.ms-panel{display:none;position:absolute;top:calc(100% + 3px);left:0;z-index:500;
+  background:#fff;border:1px solid var(--border);border-radius:8px;
+  box-shadow:0 6px 20px rgba(0,0,0,.14);min-width:180px;max-height:220px;
+  overflow-y:auto;padding:4px 0;}
+.ms-panel.open{display:block;}
+.ms-item{display:flex;align-items:center;gap:8px;padding:6px 12px;
+  cursor:pointer;font-size:11px;white-space:nowrap;color:var(--text);user-select:none;}
+.ms-item:hover{background:var(--light);}
+.ms-item input[type=checkbox]{cursor:pointer;accent-color:var(--mid);flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="logo">LITZM <span>Service Delivery</span></div>
+    <div class="header-meta">Commercial &amp; Delivery Intelligence — FY27 (Mar 2026 – Feb 2027)</div>
+  </div>
+  <div class="header-right">
+    <div class="pill">Live · <%= @generated_at %></div>
+    <div class="pill">FY27 · All figures ZMW unless stated</div>
+    <div class="pill"><a href="/admin" style="color:#93c5fd;text-decoration:none;">← Admin</a></div>
+  </div>
+</div>
+
+<div class="nav-groups">
+  <button class="nav-group-btn active" onclick="showGroup('sf',this)">&#9889; Salesforce CRM</button>
+  <div class="nav-group-sep"></div>
+  <button class="nav-group-btn" onclick="showGroup('bridge',this)">&#128279; SF &#8594; Organic Bridge</button>
+  <div class="nav-group-sep"></div>
+  <button class="nav-group-btn" onclick="showGroup('organic',this)">&#128230; Organic Delivery</button>
+  <div class="nav-group-sep"></div>
+  <button class="nav-group-btn" onclick="showGroup('guide',this)">&#128216; PowerBI Guide</button>
+  <div class="nav-group-sep"></div>
+  <button class="nav-group-btn" onclick="showGroup('snow',this)">&#128225; SNow Live</button>
+</div>
+
+<div class="nav-tabs">
+  <button class="nav-tab group-visible active" data-group="sf" onclick="showTab('sf-summary',this)">SF Overview</button>
+  <button class="nav-tab group-visible" data-group="sf" onclick="showTab('sf-newlogos',this)" style="color:#a78bfa;">&#9733; New Logos</button>
+  <button class="nav-tab group-visible" data-group="sf" onclick="showTab('sf-accounts',this)">Accounts</button>
+  <button class="nav-tab group-visible" data-group="sf" onclick="showTab('sf-kam',this)">KAM Leaderboard</button>
+  <button class="nav-tab" data-group="bridge" onclick="showTab('bridge-funnel',this)">Coverage Funnel</button>
+  <button class="nav-tab" data-group="bridge" onclick="showTab('bridge-gap',this)">Delivery Gap Report</button>
+  <button class="nav-tab" data-group="organic" onclick="showTab('org-summary',this)">Organic Summary</button>
+  <button class="nav-tab" data-group="organic" onclick="showTab('org-pipeline',this)">Pipeline by Stage</button>
+  <button class="nav-tab" data-group="organic" onclick="showTab('org-revenue',this)">Revenue &amp; Targets</button>
+  <button class="nav-tab" data-group="organic" onclick="showTab('org-sla',this)">SLA Performance</button>
+  <button class="nav-tab" data-group="organic" onclick="showTab('org-wip',this)">Active WIP</button>
+  <button class="nav-tab" data-group="guide" onclick="showTab('pbi-guide',this)">Full Guide</button>
+  <button class="nav-tab" data-group="snow" onclick="showTab('snow-overview',this)">Overview</button>
+  <button class="nav-tab" data-group="snow" onclick="showTab('snow-stage',this)">By Stage</button>
+  <button class="nav-tab" data-group="snow" onclick="showTab('snow-pipeline',this)">Pipeline</button>
+</div>
+
+<div class="filter-bar">
+  <span class="fl">Filters</span>
+  <div class="ms" id="fSegment" data-label="All Segments">
+    <button class="ms-btn" type="button">All Segments</button>
+    <div class="ms-panel">
+      <label class="ms-item"><input type="checkbox" value="Enterprise"> Enterprise</label>
+      <label class="ms-item"><input type="checkbox" value="Wholesale"> Wholesale</label>
+      <label class="ms-item"><input type="checkbox" value="Retail"> Retail</label>
+      <label class="ms-item"><input type="checkbox" value="Internal"> Internal</label>
+    </div>
+  </div>
+  <div class="ms" id="fKam" data-label="All KAMs">
+    <button class="ms-btn" type="button">All KAMs</button>
+    <div class="ms-panel">
+      <% @sf_kams.each do |k| %>
+        <label class="ms-item"><input type="checkbox" value="<%= h k['account_owner'] %>"> <%= h k['account_owner'] %></label>
+      <% end %>
+    </div>
+  </div>
+  <div class="ms" id="fSfStatus" data-label="All SF Statuses">
+    <button class="ms-btn" type="button">All SF Statuses</button>
+    <div class="ms-panel">
+      <label class="ms-item"><input type="checkbox" value="Accepted by Service Delivery"> Accepted by Service Delivery</label>
+      <label class="ms-item"><input type="checkbox" value="Sent for Service Qualification"> Sent for Service Qualification</label>
+      <label class="ms-item"><input type="checkbox" value="Service Delivery is not required"> Not Required</label>
+      <label class="ms-item"><input type="checkbox" value="Service Delivered"> Service Delivered</label>
+      <label class="ms-item"><input type="checkbox" value="Rejected by Service Delivery"> Rejected by Service Delivery</label>
+    </div>
+  </div>
+  <div class="fsep"></div>
+  <span class="fl">Organic Tracker</span>
+  <div class="ms" id="fTracker" data-label="All Trackers">
+    <button class="ms-btn" type="button">All Trackers</button>
+    <div class="ms-panel">
+      <label class="ms-item"><input type="checkbox" value="14"> Commercial Orders</label>
+      <label class="ms-item"><input type="checkbox" value="18"> C2 / Cloud</label>
+    </div>
+  </div>
+  <div class="fsep"></div>
+  <button class="fbtn" onclick="clearFilters()">&#10005; Clear</button>
+  <span id="filterSpinner" style="display:none;width:14px;height:14px;border:2px solid #dde3f0;border-top-color:#273c88;border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0"></span>
+  <span class="fhint" id="filterHint">FY27 · Loading…</span>
+</div>
+
+<div id="orgFilterBar" style="display:none;background:#f8f9fe;border-bottom:1px solid #dde3f0;padding:6px 24px;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;">
+  <span class="fl" style="color:#273c88;font-weight:700">&#128230; Organic Filters</span>
+  <div class="ms" id="fAssignee" data-label="All Assignees">
+    <button class="ms-btn" type="button" style="font-size:12px;padding:3px 8px;min-width:120px">All Assignees</button>
+    <div class="ms-panel">
+      <% @org_assignees_list.each do |a| %><label class="ms-item"><input type="checkbox" value="<%= h a %>"> <%= h a %></label><% end %>
+    </div>
+  </div>
+  <div class="ms" id="fOrgStatus" data-label="All Statuses">
+    <button class="ms-btn" type="button" style="font-size:12px;padding:3px 8px;min-width:130px">All Statuses</button>
+    <div class="ms-panel">
+      <% @org_statuses_list.each do |s| %><label class="ms-item"><input type="checkbox" value="<%= h s %>"> <%= h s %></label><% end %>
+    </div>
+  </div>
+  <div class="ms" id="fAccount" data-label="All Accounts">
+    <button class="ms-btn" type="button" style="font-size:12px;padding:3px 8px;min-width:130px">All Accounts</button>
+    <div class="ms-panel">
+      <% @org_accounts_list.each do |a| %><label class="ms-item"><input type="checkbox" value="<%= h a %>"> <%= h a %></label><% end %>
+    </div>
+  </div>
+  <div class="ms" id="fOppType" data-label="All Opp Types">
+    <button class="ms-btn" type="button" style="font-size:12px;padding:3px 8px;min-width:120px">All Opp Types</button>
+    <div class="ms-panel">
+      <% @org_opp_types_list.each do |t| %><label class="ms-item"><input type="checkbox" value="<%= h t %>"> <%= h t %></label><% end %>
+    </div>
+  </div>
+  <input id="fOrderNum" type="text" placeholder="Order #" oninput="debouncedFilter()" style="font-size:12px;padding:3px 6px;border:1px solid #dde3f0;border-radius:4px;width:110px">
+  <input id="fReqNum" type="text" placeholder="Request #" oninput="debouncedFilter()" style="font-size:12px;padding:3px 6px;border:1px solid #dde3f0;border-radius:4px;width:110px">
+  <input id="fAcctNum" type="text" placeholder="Account #" oninput="debouncedFilter()" style="font-size:12px;padding:3px 6px;border:1px solid #dde3f0;border-radius:4px;width:110px">
+  <input id="fDateFrom" type="date" onchange="applyFilters()" style="font-size:12px;padding:3px 6px;border:1px solid #dde3f0;border-radius:4px" title="Created from">
+  <input id="fDateTo" type="date" onchange="applyFilters()" style="font-size:12px;padding:3px 6px;border:1px solid #dde3f0;border-radius:4px" title="Created to">
+  <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:600;color:#16a34a">
+    <input id="fActiveWip" type="checkbox" onchange="applyFilters()"> Active WIP only
+  </label>
+  <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:600;color:#dc2626">
+    <input id="fOverdue" type="checkbox" onchange="applyFilters()"> Overdue only
+  </label>
+</div>
+
+<div id="snowFilterBar" style="display:none;background:#f0f4ff;border-bottom:1px solid #c7d2fe;padding:6px 24px;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;">
+  <span class="fl" style="color:#1e40af;font-weight:700">&#128225; SNow Filters</span>
+  <div class="ms" id="fSnowState" data-label="All States">
+    <button class="ms-btn" type="button" style="font-size:12px;padding:3px 8px;min-width:130px">All States</button>
+    <div class="ms-panel">
+      <label class="ms-item"><input type="checkbox" value="Open"> Open</label>
+      <label class="ms-item"><input type="checkbox" value="Work in Progress"> Work in Progress</label>
+      <label class="ms-item"><input type="checkbox" value="Closed Complete"> Closed Complete</label>
+      <label class="ms-item"><input type="checkbox" value="Closed Incomplete"> Closed Incomplete</label>
+    </div>
+  </div>
+  <div class="ms" id="fSnowStage" data-label="All Stages">
+    <button class="ms-btn" type="button" style="font-size:12px;padding:3px 8px;min-width:130px">All Stages</button>
+    <div class="ms-panel">
+      <label class="ms-item"><input type="checkbox" value="New"> New</label>
+      <label class="ms-item"><input type="checkbox" value="Awaiting site survey"> Awaiting site survey</label>
+      <label class="ms-item"><input type="checkbox" value="Awaiting approval"> Awaiting approval</label>
+      <label class="ms-item"><input type="checkbox" value="Awaiting acceptance"> Awaiting acceptance</label>
+      <label class="ms-item"><input type="checkbox" value="Installation"> Installation</label>
+      <label class="ms-item"><input type="checkbox" value="Configuration"> Configuration</label>
+      <label class="ms-item"><input type="checkbox" value="Testing"> Testing</label>
+      <label class="ms-item"><input type="checkbox" value="Complete"> Complete</label>
+    </div>
+  </div>
+  <div class="ms" id="fSnowGroup" data-label="All Groups">
+    <button class="ms-btn" type="button" style="font-size:12px;padding:3px 8px;min-width:155px">All Groups</button>
+    <div class="ms-panel">
+      <label class="ms-item"><input type="checkbox" value="Zambia Service Delivery"> ZM Service Delivery</label>
+      <label class="ms-item"><input type="checkbox" value="Zambia Technical Services"> ZM Technical Services</label>
+      <label class="ms-item"><input type="checkbox" value="Zambia Site Survey"> ZM Site Survey</label>
+    </div>
+  </div>
+  <button class="fbtn" onclick="clearSnowFilters()">&#10005; Clear</button>
+  <span id="snowSpinner" style="display:none;width:14px;height:14px;border:2px solid #dde3f0;border-top-color:#1e40af;border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0"></span>
+  <span class="fhint" id="snowHint">SNow live · Mar 2026+ · Zambia groups</span>
+</div>
+
+<!-- ═══ SF OVERVIEW ═══ -->
+<div class="page active" id="page-sf-summary">
+  <div class="section-title">Salesforce FY27 Pipeline — Top-Level KPIs</div>
+  <div style="background:#fef3c7;border:1px solid #d97706;border-radius:6px;padding:8px 14px;margin-bottom:12px;font-size:11px;color:#92400e;">
+    <strong>Diff MRR / Diff NRR</strong> — all revenue figures show <em>differential (incremental)</em> amounts from Salesforce.
+    For <strong>New Business</strong> orders this equals the full contract MRR. For upgrades/downgrades it shows only the net change vs the existing subscription.
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi purple" onclick="showDT('sf-total')">
+      <div class="kpi-label">SF Total Subscriptions</div>
+      <div class="kpi-value purple" id="kSfTotal">—</div>
+      <div class="kpi-sub" id="kSfSub">Loading…</div>
+    </div>
+    <div class="kpi" onclick="showDT('sf-mrr')">
+      <div class="kpi-label">Total Diff MRR (ZMW)</div>
+      <div class="kpi-value" style="font-size:18px" id="kSfMrr">—</div>
+      <div class="kpi-sub">Incremental · ZMW+USD·<%= @usd_rate.to_s.delete_suffix('.0') %></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total Diff NRR (ZMW)</div>
+      <div class="kpi-value" style="font-size:18px" id="kSfNrr">—</div>
+      <div class="kpi-sub">Incremental non-recurring</div>
+    </div>
+    <div class="kpi" style="background:#7c3aed;cursor:pointer" onclick="sfNewLogoDT()">
+      <div class="kpi-label" style="color:rgba(255,255,255,.8)">New Logo Accounts</div>
+      <div class="kpi-value" style="color:#fff" id="kNlAccts">—</div>
+      <div class="kpi-sub" style="color:rgba(255,255,255,.7)" id="kNlSub">Loading…</div>
+    </div>
+    <div class="kpi" style="background:#d97706;cursor:pointer" onclick="sfNewLogoDT()">
+      <div class="kpi-label" style="color:rgba(255,255,255,.8)">New Logo Diff MRR</div>
+      <div class="kpi-value" style="color:#fff;font-size:18px" id="kNlMrr">—</div>
+      <div class="kpi-sub" style="color:rgba(255,255,255,.7)" id="kNlPct">Loading…</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-label">Accepted for Delivery</div>
+      <div class="kpi-value green" id="kAccepted">—</div>
+      <div class="kpi-sub" id="kAcceptedMrr">Loading…</div>
+    </div>
+    <div class="kpi amber">
+      <div class="kpi-label">In Qualification</div>
+      <div class="kpi-value amber" id="kInQual">—</div>
+      <div class="kpi-sub" id="kInQualMrr">Loading…</div>
+    </div>
+    <div class="kpi teal">
+      <div class="kpi-label">Service Delivered</div>
+      <div class="kpi-value teal" id="kDelivered">—</div>
+      <div class="kpi-sub" id="kDeliveredMrr">Loading…</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-label">Rejected</div>
+      <div class="kpi-value red" id="kRejected">—</div>
+      <div class="kpi-sub" id="kRejectedMrr">Loading…</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Not Required</div>
+      <div class="kpi-value" id="kNotReq">—</div>
+      <div class="kpi-sub">Admin / billing only</div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">Monthly Subscription Intake</div>
+        <div class="cd">New SF orders created per month FY27</div></div><span class="cbadge">TREND</span></div>
+      <div class="cw" style="height:220px"><canvas id="cSfMonthly"></canvas></div>
+    </div>
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">SF Pipeline Status Funnel</div>
+        <div class="cd">All subscriptions by SF status</div></div><span class="cbadge">FUNNEL</span></div>
+      <div class="cw" style="height:220px"><canvas id="cSfStatus"></canvas></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="chart-card">
+      <div class="ch"><div><div class="ct">MRR by SF Status</div>
+        <div class="cd">Pipeline value locked at each stage</div></div><span class="cbadge">REVENUE</span></div>
+      <div class="cw" style="height:220px"><canvas id="cSfMrrByStatus"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="ch"><div><div class="ct">Opportunity Type Split</div>
+        <div class="cd">New Business vs Renewal vs other</div></div><span class="cbadge">DONUT</span></div>
+      <div class="cw" style="height:220px"><canvas id="cSfOppType"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ NEW LOGOS ═══ -->
+<div class="page" id="page-sf-newlogos">
+  <div class="section-title">New Logo Tracking — FY27</div>
+  <div style="background:#f5f3ff;border:1px solid #7c3aed;border-radius:6px;padding:10px 16px;margin-bottom:16px;font-size:11px;color:#4c1d95;">
+    <strong>What is a New Logo?</strong> — An order where <code>opportunity_type = 'New Business'</code> in Salesforce.
+    New logos represent true revenue growth — for new logos, Diff MRR = full contract MRR (no existing base to subtract from).
+  </div>
+  <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:20px">
+    <div class="kpi" style="background:#7c3aed">
+      <div class="kpi-label" style="color:rgba(255,255,255,.8)">New Logo Accounts</div>
+      <div class="kpi-value" style="color:#fff" id="nl2Accts">—</div>
+      <div class="kpi-sub" style="color:rgba(255,255,255,.7)">Distinct new customers FY27</div>
+    </div>
+    <div class="kpi" style="background:#6d28d9">
+      <div class="kpi-label" style="color:rgba(255,255,255,.8)">New Logo Orders</div>
+      <div class="kpi-value" style="color:#fff" id="nl2Orders">—</div>
+      <div class="kpi-sub" style="color:rgba(255,255,255,.7)">Distinct order numbers</div>
+    </div>
+    <div class="kpi" style="background:#d97706">
+      <div class="kpi-label" style="color:rgba(255,255,255,.8)">New Logo Diff MRR</div>
+      <div class="kpi-value" style="color:#fff;font-size:18px" id="nl2Mrr">—</div>
+      <div class="kpi-sub" style="color:rgba(255,255,255,.7)" id="nl2Pct">Loading…</div>
+    </div>
+    <div class="kpi" style="background:#b45309">
+      <div class="kpi-label" style="color:rgba(255,255,255,.8)">Non-New-Logo MRR</div>
+      <div class="kpi-value" style="color:#fff;font-size:18px" id="nl2OtherMrr">—</div>
+      <div class="kpi-sub" style="color:rgba(255,255,255,.7)">Upgrades/renewals/changes</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-label">New Logo — Delivered</div>
+      <div class="kpi-value green" id="nl2Delivered">—</div>
+      <div class="kpi-sub">SF status = Delivered</div>
+    </div>
+  </div>
+  <div class="g2" style="margin-bottom:20px">
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">New Logo Accounts per Month</div>
+        <div class="cd">Distinct new customers won each month</div></div><span class="cbadge">TREND</span></div>
+      <div class="cw" style="height:220px"><canvas id="cNlAccts"></canvas></div>
+    </div>
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">New Logo Diff MRR vs Total Diff MRR</div>
+        <div class="cd">How much pipeline MRR comes from new customers</div></div><span class="cbadge">COMPARE</span></div>
+      <div class="cw" style="height:220px"><canvas id="cNlMrr"></canvas></div>
+    </div>
+  </div>
+  <div class="section-title">Monthly New Logo Breakdown</div>
+  <div class="tbl" style="margin-bottom:20px">
+    <table>
+      <thead><tr>
+        <th>Month</th><th style="text-align:right">Total Orders</th>
+        <th style="text-align:right;color:#a78bfa">NL Accounts</th>
+        <th style="text-align:right;color:#a78bfa">NL Orders</th>
+        <th style="text-align:right">Total MRR (ZMW)</th>
+        <th style="text-align:right;color:#fbbf24">NL MRR (ZMW)</th>
+        <th style="text-align:right">NL %</th>
+        <th style="text-align:right">Total NRR (ZMW)</th>
+        <th style="text-align:right">Accepted</th>
+        <th style="text-align:right">Delivered</th>
+        <th style="text-align:right">In Organic</th>
+      </tr></thead>
+      <tbody id="nlMonthlyTable"></tbody>
+      <tfoot id="nlMonthlyTotals"></tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ SF ACCOUNTS ═══ -->
+<div class="page" id="page-sf-accounts">
+  <div class="section-title">Top Accounts by SF Pipeline MRR</div>
+  <div class="g2" style="margin-bottom:16px">
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">Top 12 Accounts by MRR (ZMW)</div></div><span class="cbadge">RANKED</span></div>
+      <div id="sfAcctBars"></div>
+    </div>
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">MRR Concentration</div>
+        <div class="cd">Top accounts share of total pipeline</div></div><span class="cbadge">PARETO</span></div>
+      <div class="cw" style="height:320px"><canvas id="cSfAcctMrr"></canvas></div>
+    </div>
+  </div>
+  <div class="section-title">All Accounts — Status Matrix</div>
+  <div class="tbl">
+    <table>
+      <thead><tr>
+        <th>Account</th><th>Segment</th><th>KAM</th>
+        <th>Subs</th><th>Orders</th>
+        <th>Diff MRR (ZMW)</th><th>Diff NRR (ZMW)</th>
+        <th style="color:#a78bfa">New Logos</th>
+        <th>Accepted</th><th>Delivered</th><th>In Qual</th><th>Rejected</th>
+        <th>In Organic</th>
+      </tr></thead>
+      <tbody id="sfAcctTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ KAM LEADERBOARD ═══ -->
+<div class="page" id="page-sf-kam">
+  <div class="section-title">KAM / Account Owner Performance — FY27</div>
+  <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
+    <div class="kpi purple"><div class="kpi-label">Active KAMs</div>
+      <div class="kpi-value purple" id="kKamCount">—</div><div class="kpi-sub">With FY27 orders</div></div>
+    <div class="kpi"><div class="kpi-label">Top MRR — KAM</div>
+      <div class="kpi-value" style="font-size:16px" id="kTopKam">—</div>
+      <div class="kpi-sub" id="kTopKamMrr">—</div></div>
+    <div class="kpi green"><div class="kpi-label">Top Delivery Rate</div>
+      <div class="kpi-value green" style="font-size:14px" id="kTopDelivery">—</div>
+      <div class="kpi-sub" id="kTopDeliveryPct">—</div></div>
+    <div class="kpi amber"><div class="kpi-label">Most Orders</div>
+      <div class="kpi-value amber" style="font-size:14px" id="kMostOrders">—</div>
+      <div class="kpi-sub" id="kMostOrdersCnt">—</div></div>
+    <div class="kpi red"><div class="kpi-label">Avg Delivery Rate</div>
+      <div class="kpi-value red" id="kAvgDelivery">—</div><div class="kpi-sub">Across all KAMs</div></div>
+  </div>
+  <div class="g2">
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">Top 10 KAMs by Pipeline MRR</div></div><span class="cbadge">LEADERBOARD</span></div>
+      <div class="cw" style="height:300px"><canvas id="cKamMrr"></canvas></div>
+    </div>
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">KAM — Accepted vs Delivered vs In Organic</div>
+        <div class="cd">Delivery pipeline health per KAM</div></div><span class="cbadge">STACKED</span></div>
+      <div class="cw" style="height:300px"><canvas id="cKamDelivery"></canvas></div>
+    </div>
+  </div>
+  <div class="section-title">KAM Detail Table</div>
+  <div class="tbl">
+    <table>
+      <thead><tr>
+        <th>KAM</th><th>Accounts</th><th>Subs</th><th>Orders</th>
+        <th>Diff MRR (ZMW)</th><th>Diff NRR (ZMW)</th>
+        <th>Accepted</th><th>Delivered</th><th>In Qual</th>
+        <th>In Organic</th><th>Delivery %</th>
+      </tr></thead>
+      <tbody id="kamTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ BRIDGE: COVERAGE FUNNEL ═══ -->
+<div class="page" id="page-bridge-funnel">
+  <div class="section-title">SF &#8594; Organic Delivery Coverage Funnel</div>
+  <div class="gap-alert" id="bridgeAlert">
+    <div style="font-size:22px">&#9888;</div>
+    <div>
+      <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:3px" id="bridgeAlertTitle">Loading…</div>
+      <div style="font-size:11px;color:#b45309">
+        These are orders Salesforce has marked "Accepted by Service Delivery" but no Redmine issue has been created.
+        Immediate action required to onboard into the delivery workflow.
+      </div>
+    </div>
+  </div>
+  <div class="chart-card accent" style="margin-bottom:16px">
+    <div class="ch"><div><div class="ct">FY27 Delivery Funnel — SF to Completion</div>
+      <div class="cd">Live data from Salesforce + Redmine</div></div></div>
+    <div class="funnel" id="bridgeFunnel"></div>
+  </div>
+  <div class="g3">
+    <div class="chart-card">
+      <div class="ch"><div><div class="ct">Coverage by Month</div>
+        <div class="cd">SF orders created vs those in Organic delivery</div></div></div>
+      <div class="cw" style="height:220px"><canvas id="cBridgeMonthly"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="ch"><div><div class="ct">Gap MRR by KAM</div>
+        <div class="cd">Accepted orders not yet in delivery, by account owner</div></div></div>
+      <div class="cw" style="height:220px"><canvas id="cGapByKam"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="ch"><div><div class="ct">Opportunity Type Split</div>
+        <div class="cd">SF opportunity type distribution</div></div></div>
+      <div class="cw" style="height:220px"><canvas id="cBridgeOppType"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ BRIDGE: DELIVERY GAP ═══ -->
+<div class="page" id="page-bridge-gap">
+  <div class="section-title">Delivery Gap — "Accepted" Orders Not Yet in Organic</div>
+  <div class="gap-alert">
+    <div style="font-size:22px">&#128680;</div>
+    <div>
+      <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:3px" id="gapAlertTitle">Loading…</div>
+      <div style="font-size:11px;color:#b45309">
+        Sorted by MRR value. Each row = an SF order that needs a Redmine issue created so delivery can begin.
+      </div>
+    </div>
+  </div>
+  <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
+    <div class="kpi red"><div class="kpi-label">Gap: Accepted</div>
+      <div class="kpi-value red" id="kGapAccepted">—</div><div class="kpi-sub">Accepted, no Organic issue</div></div>
+    <div class="kpi red"><div class="kpi-label">Gap MRR (ZMW)</div>
+      <div class="kpi-value red" style="font-size:16px" id="kGapMrr">—</div><div class="kpi-sub">Accepted MRR at risk</div></div>
+    <div class="kpi amber"><div class="kpi-label">Oldest Gap (days)</div>
+      <div class="kpi-value amber" id="kGapOldest">—</div><div class="kpi-sub" id="kGapOldestAcct">—</div></div>
+    <div class="kpi amber"><div class="kpi-label">Avg Days Waiting</div>
+      <div class="kpi-value amber" id="kGapAvg">—</div><div class="kpi-sub">Across gap orders</div></div>
+    <div class="kpi green"><div class="kpi-label">In Organic (matched)</div>
+      <div class="kpi-value green" id="kGapInOrganic">—</div><div class="kpi-sub">SF&#8594;Delivery link confirmed</div></div>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Order #</th><th>Account</th><th>KAM</th>
+        <th>SF Status</th><th>Opp Type</th>
+        <th>MRR (ZMW)</th><th>NRR (ZMW)</th>
+        <th>Days Waiting</th><th>Month</th>
+      </tr></thead>
+      <tbody id="gapTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ ORGANIC SUMMARY ═══ -->
+<div class="page" id="page-org-summary">
+  <div class="section-title">Organic Delivery — Key Performance Indicators</div>
+  <div class="kpi-grid">
+    <div class="kpi" onclick="showDT('open')">
+      <div class="kpi-label">Total Open Orders</div>
+      <div class="kpi-value" id="kOrgTotal">—</div><div class="kpi-sub">&#128269; Drillthrough</div></div>
+    <div class="kpi green" onclick="showDT('wip')">
+      <div class="kpi-label">Active WIP</div>
+      <div class="kpi-value green" id="kOrgWip">—</div><div class="kpi-sub">In progress</div></div>
+    <div class="kpi amber" onclick="showDT('overdue')">
+      <div class="kpi-label">Overdue</div>
+      <div class="kpi-value amber" id="kOrgOverdue">—</div><div class="kpi-sub">Past due date</div></div>
+    <div class="kpi red">
+      <div class="kpi-label">SLA Breach Rate</div>
+      <div class="kpi-value red" id="kSlaBreach">—</div><div class="kpi-sub" id="kSlaBreachSub">Loading…</div></div>
+    <div class="kpi purple">
+      <div class="kpi-label">Organic MRR (ZMW)</div>
+      <div class="kpi-value purple" style="font-size:16px" id="kOrgMrr">—</div><div class="kpi-sub">In active delivery</div></div>
+    <div class="kpi">
+      <div class="kpi-label">Organic NRR (ZMW)</div>
+      <div class="kpi-value" style="font-size:16px" id="kOrgNrr">—</div><div class="kpi-sub">Non-recurring</div></div>
+    <div class="kpi green">
+      <div class="kpi-label">Commercial Orders</div>
+      <div class="kpi-value green" id="kOrgComm">—</div><div class="kpi-sub">Tracker 14</div></div>
+    <div class="kpi">
+      <div class="kpi-label">C2 / Cloud</div>
+      <div class="kpi-value" id="kOrgC2">—</div><div class="kpi-sub">Tracker 18</div></div>
+  </div>
+  <div class="g2">
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">Organic Monthly Intake</div>
+        <div class="cd">Issues created per month</div></div><span class="cbadge">TREND</span></div>
+      <div class="cw" style="height:200px"><canvas id="cOrgMonthly"></canvas></div>
+    </div>
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">Opportunity Type</div></div><span class="cbadge">DONUT</span></div>
+      <div class="cw" style="height:200px"><canvas id="cOrgOppType"></canvas></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="chart-card">
+      <div class="ch"><div><div class="ct">Workload by Assignee</div></div><span class="cbadge">BAR</span></div>
+      <div class="cw" style="height:160px"><canvas id="cOrgAssignee"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="ch"><div><div class="ct">SLA Health</div></div><span class="cbadge">GAUGE</span></div>
+      <div class="cw" style="height:160px"><canvas id="cOrgSla"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PIPELINE BY STAGE ═══ -->
+<div class="page" id="page-org-pipeline">
+  <div class="section-title">Commercial Orders — Pipeline by Stage</div>
+  <div class="g32">
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">Orders by Status</div>
+        <div class="cd">Click row &#8594; view in Redmine</div></div><span class="cbadge">LIVE</span></div>
+      <div class="cw" style="height:340px"><canvas id="cOrgStatus"></canvas></div>
+    </div>
+    <div class="chart-card accent">
+      <div class="ch"><div><div class="ct">Top Organic Accounts</div>
+        <div class="cd">By MRR in active delivery</div></div></div>
+      <div id="orgAcctBars"></div>
+    </div>
+  </div>
+  <div class="section-title" style="margin-top:4px">Issues Table — Click row for Redmine issue</div>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Account</th><th>Order #</th><th>Opportunity Name</th><th>Status</th><th>Opp Type</th>
+      <th>MRR (ZMW)</th><th>MRR (USD)</th><th>Assignee</th><th>Age (d)</th><th>Overdue</th></tr></thead>
+    <tbody id="orgPipelineTable"></tbody>
+  </table></div>
+</div>
+
+<!-- ═══ REVENUE & TARGETS ═══ -->
+<div class="page" id="page-org-revenue">
+  <div class="section-title">Organic Revenue Pipeline</div>
+  <div class="g3">
+    <div class="chart-card accent">
+      <div class="ct" style="margin-bottom:10px">Organic vs SF MRR Coverage</div>
+      <div style="text-align:center;padding:8px 0">
+        <div style="font-size:40px;font-weight:800;color:var(--mid)" id="kCovPct">—</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px" id="kCovSub">Loading…</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px">&#8593; This grows as gap orders are onboarded</div>
+      </div>
+    </div>
+    <div class="chart-card accent">
+      <div class="ct" style="margin-bottom:10px">Total Pipeline NRR</div>
+      <div style="text-align:center;padding:14px 0">
+        <div style="font-size:22px;font-weight:800;color:var(--navy)" id="kRevNrr">—</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px" id="kRevNrrSub">Loading…</div>
+      </div>
+    </div>
+    <div class="chart-card accent">
+      <div class="ct" style="margin-bottom:10px">Active WIP MRR</div>
+      <div style="text-align:center;padding:14px 0">
+        <div style="font-size:22px;font-weight:800;color:var(--green)" id="kWipMrr">—</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px" id="kWipSub">Loading…</div>
+      </div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="chart-card">
+      <div class="ch"><div><div class="ct">MRR by Opportunity Type</div></div><span class="cbadge">BAR</span></div>
+      <div class="cw" style="height:220px"><canvas id="cOrgMrrOpp"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="ch"><div><div class="ct">Top 10 Organic Accounts by MRR</div></div><span class="cbadge">RANKED</span></div>
+      <div id="orgRevAcctBars"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SLA PERFORMANCE ═══ -->
+<div class="page" id="page-org-sla">
+  <div class="section-title">SLA Performance</div>
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi red"><div class="kpi-label">Breach Rate</div>
+      <div class="kpi-value red" id="kSlaBreachRate">—</div><div class="kpi-sub" id="kSlaBreachDetail">Loading…</div></div>
+    <div class="kpi amber"><div class="kpi-label">Avg Hours (Breached)</div>
+      <div class="kpi-value amber" id="kSlaAvgHours">—</div><div class="kpi-sub">Across all statuses</div></div>
+    <div class="kpi green"><div class="kpi-label">On Time</div>
+      <div class="kpi-value green" id="kSlaOnTime">—</div><div class="kpi-sub" id="kSlaOnTimePct">Loading…</div></div>
+    <div class="kpi"><div class="kpi-label">Total SLA Records</div>
+      <div class="kpi-value" id="kSlaTotal">—</div><div class="kpi-sub">Status transitions tracked</div></div>
+  </div>
+  <div class="chart-card" style="margin-bottom:14px">
+    <div class="ct" style="margin-bottom:8px">Overall SLA Health</div>
+    <div class="sla-bar" id="slaHealthBar">
+      <div class="sla-ok" id="slaOkBar" style="width:20%">Loading…</div>
+      <div class="sla-breach" id="slaBreachBar" style="width:80%">Loading…</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:5px">
+      <span id="slaOkLabel">—</span><span id="slaBreachLabel">—</span>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="chart-card"><div class="ch"><div><div class="ct">Avg Hours in Status</div>
+      <div class="cd">Bottleneck identification</div></div><span class="cbadge">BOTTLENECK</span></div>
+      <div class="cw" style="height:260px"><canvas id="cSlaHours"></canvas></div></div>
+    <div class="chart-card"><div class="ch"><div><div class="ct">Breach vs On Time by Status</div></div><span class="cbadge">STACKED</span></div>
+      <div class="cw" style="height:260px"><canvas id="cSlaBreach"></canvas></div></div>
+  </div>
+
+  <div class="section-title" style="margin-top:22px">SLA Targets by Stage — Commercial Orders</div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:16px">
+    <div style="background:#003D82;color:#fff;font-weight:700;font-size:11px;padding:5px 12px;letter-spacing:.5px">PRE-BUILD · 4.5 days total</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:var(--light);color:var(--muted);font-size:10px;text-transform:uppercase">
+        <th style="padding:5px 10px;text-align:left">Stage</th><th style="padding:5px 10px;text-align:center">SLA Target</th>
+        <th style="padding:5px 10px;text-align:left">Owner</th><th style="padding:5px 10px;text-align:left">Gate</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:5px 10px">Service Request Review</td><td style="text-align:center"><span style="background:#003D82;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">0.5 day</span></td><td style="color:var(--muted)">KAM / Projects</td><td style="color:var(--muted)">SNow import or manual entry</td></tr>
+        <tr style="background:var(--light)"><td style="padding:5px 10px">Service Scheduling</td><td style="text-align:center"><span style="background:#003D82;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">0.5 day</span></td><td style="color:var(--muted)">PM</td><td style="color:var(--muted)">KMZ + BOQ mandatory</td></tr>
+        <tr><td style="padding:5px 10px">Contractor Assignment</td><td style="text-align:center"><span style="background:#003D82;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">1 day</span></td><td style="color:var(--muted)">&#128260; Boas Katanga</td><td style="color:var(--muted)">Select contractor</td></tr>
+        <tr style="background:var(--light)"><td style="padding:5px 10px">Site Survey</td><td style="text-align:center"><span style="background:#003D82;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">1 day</span></td><td style="color:var(--muted)">Contractor</td><td style="color:var(--muted)">6 material CFs + &#8805;5 photos + PDF quote</td></tr>
+        <tr><td style="padding:5px 10px">Quote Submission</td><td style="text-align:center"><span style="background:#003D82;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">1 day</span></td><td style="color:var(--muted)">Contractor / Deborah</td><td style="color:var(--muted)">PR raised and approved</td></tr>
+        <tr style="background:var(--light)"><td style="padding:5px 10px">Build Approval</td><td style="text-align:center"><span style="background:#003D82;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">0.5 day</span></td><td style="color:var(--muted)">&#128260; PM (restored)</td><td style="color:var(--muted)">PM approves or rejects with comment</td></tr>
+      </tbody>
+    </table>
+    <div style="background:#8B4513;color:#fff;font-weight:700;font-size:11px;padding:5px 12px;letter-spacing:.5px">BUILD · 4 days total</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>
+        <tr><td style="padding:5px 10px">Fiber Build</td><td style="text-align:center"><span style="background:#8B4513;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">4 days</span></td><td style="color:var(--muted)">&#128260; Contractor (restored)</td><td style="color:var(--muted)">&#8805;5 build completion photos required</td></tr>
+      </tbody>
+    </table>
+    <div style="background:#1A6B3A;color:#fff;font-weight:700;font-size:11px;padding:5px 12px;letter-spacing:.5px">POST-BUILD · 7 days total</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tbody>
+        <tr style="background:var(--light)"><td style="padding:5px 10px">Splicing</td><td style="text-align:center"><span style="background:#1A6B3A;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">1 day</span></td><td style="color:var(--muted)">Splicing Team</td><td style="color:var(--muted)">Optical CFs + &#8805;1 photo required</td></tr>
+        <tr><td style="padding:5px 10px">Quality Assurance</td><td style="text-align:center"><span style="background:#1A6B3A;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">2 days</span></td><td style="color:var(--muted)">QA Team</td><td style="color:var(--muted)">Internal build inspection</td></tr>
+        <tr style="background:var(--light)"><td style="padding:5px 10px">Service Delivery</td><td style="text-align:center"><span style="background:#1A6B3A;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">0.5 day</span></td><td style="color:var(--muted)">&#128260; Larkson Chibesa</td><td style="color:var(--muted)">8 A/B-end CFs required</td></tr>
+        <tr><td style="padding:5px 10px">NOC Handover</td><td style="text-align:center"><span style="background:#1A6B3A;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">0.5 day</span></td><td style="color:var(--muted)">NOC Team</td><td style="color:var(--muted)">Network registration</td></tr>
+        <tr style="background:var(--light)"><td style="padding:5px 10px">Customer Handover</td><td style="text-align:center"><span style="background:#1A6B3A;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">1 day</span></td><td style="color:var(--muted)">Service Delivery</td><td style="color:var(--muted)">Service handed to customer</td></tr>
+        <tr><td style="padding:5px 10px">Billing Notification</td><td style="text-align:center"><span style="background:#1A6B3A;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">1 day</span></td><td style="color:var(--muted)">Finance / SD</td><td style="color:var(--muted)">Finance notified to activate billing</td></tr>
+        <tr style="background:var(--light)"><td style="padding:5px 10px">Submitted</td><td style="text-align:center"><span style="background:#1A6B3A;color:#fff;border-radius:12px;padding:2px 10px;font-weight:700;font-size:11px">1 day</span></td><td style="color:var(--muted)">Finance</td><td style="color:var(--muted)">Order submitted to billing system</td></tr>
+      </tbody>
+    </table>
+    <div style="background:var(--light);border-top:2px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+      <span style="font-weight:700;font-size:12px;color:var(--text)">MTTI Target:</span>
+      <span style="font-size:12px">
+        <span style="background:#003D82;color:#fff;border-radius:4px;padding:2px 8px;margin-right:4px">Pre-Build 4.5d</span>
+        + <span style="background:#8B4513;color:#fff;border-radius:4px;padding:2px 8px;margin:0 4px">Build 4d</span>
+        + <span style="background:#1A6B3A;color:#fff;border-radius:4px;padding:2px 8px;margin-left:4px">Post-Build 7d</span>
+      </span>
+      <span style="font-size:16px;font-weight:800;color:#16a34a">= 15.5 days</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ACTIVE WIP ═══ -->
+<div class="page" id="page-org-wip">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+    <div class="section-title" style="margin:0">Active WIP</div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+      <span style="color:var(--muted);font-size:11px">Month:</span>
+      <select id="wipMonth" onchange="onWipMonthChange()" style="font-size:12px;padding:4px 7px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text)">
+        <option value="">Live (current)</option>
+        <option value="2026-3">Mar 2026</option>
+        <option value="2026-4">Apr 2026</option>
+        <option value="2026-5">May 2026</option>
+        <option value="2026-6">Jun 2026</option>
+        <option value="2026-7">Jul 2026</option>
+        <option value="2026-8">Aug 2026</option>
+        <option value="2026-9">Sep 2026</option>
+        <option value="2026-10">Oct 2026</option>
+        <option value="2026-11">Nov 2026</option>
+        <option value="2026-12">Dec 2026</option>
+        <option value="2027-1">Jan 2027</option>
+        <option value="2027-2">Feb 2027</option>
+      </select>
+      <div id="wipLockBadge" style="display:none;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600"></div>
+    </div>
+  </div>
+  <div id="wipMetaBar" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:7px 14px;margin-bottom:10px;font-size:11px;color:#14532d"></div>
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi green" onclick="showDT('wip')" style="cursor:pointer"><div class="kpi-label">Total WIP ↗</div>
+      <div class="kpi-value green" id="kWipCount">—</div>
+      <div class="kpi-sub" id="kWipOpenSub" style="font-size:10px;margin-top:2px;color:var(--muted)">— open · — delivered</div></div>
+    <div class="kpi purple" onclick="showDT('wip')" style="cursor:pointer"><div class="kpi-label">MRR (ZMW) ↗</div>
+      <div class="kpi-value purple" style="font-size:16px" id="kWipMrrCard">—</div></div>
+    <div class="kpi" style="border-color:#8b5cf6;cursor:pointer" onclick="showDT('wip')"><div class="kpi-label">NRR (ZMW) ↗</div>
+      <div class="kpi-value" style="color:#8b5cf6;font-size:16px" id="kWipNrrCard">—</div></div>
+    <div class="kpi" style="border-color:#0891b2;cursor:pointer" onclick="showDT('wip')"><div class="kpi-label">MRR (USD) ↗</div>
+      <div class="kpi-value" style="color:#0891b2;font-size:16px" id="kWipMrrUsd">—</div></div>
+    <div class="kpi" style="border-color:#0e7490;cursor:pointer" onclick="showDT('wip')"><div class="kpi-label">NRR (USD) ↗</div>
+      <div class="kpi-value" style="color:#0e7490;font-size:16px" id="kWipNrrUsd">—</div></div>
+    <div class="kpi" onclick="showDT('wip-comm')" style="cursor:pointer"><div class="kpi-label">Commercial ↗</div><div class="kpi-value" id="kWipComm">—</div></div>
+    <div class="kpi" onclick="showDT('wip-c2')" style="cursor:pointer"><div class="kpi-label">C2 / Cloud ↗</div><div class="kpi-value" id="kWipC2">—</div></div>
+    <div class="kpi amber"><div class="kpi-label">Avg Age (Days)</div><div class="kpi-value amber" id="kWipAge">—</div></div>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Tracker</th><th>Account</th><th>Order #</th><th>Opportunity Name</th><th>Status</th>
+      <th>Assignee</th><th>MRR (ZMW)</th><th>MRR (USD)</th><th>NRR (ZMW)</th><th>NRR (USD)</th><th>Due Date</th><th>Age</th><th></th></tr></thead>
+    <tbody id="wipTable"></tbody>
+  </table></div>
+</div>
+
+<!-- ═══ POWERBI GUIDE ═══ -->
+<div class="page" id="page-pbi-guide">
+  <div class="section-title">PowerBI Build Reference — Fused SF + Organic Dashboard</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="chart-card accent">
+      <div class="ct" style="margin-bottom:12px">Step 1 — All API Endpoints</div>
+      <table style="font-size:11px">
+        <thead><tr><th>Dataset</th><th>Endpoint</th><th>Layer</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge bp">sf_pipeline</span></td><td><code>/api/powerbi/sf_pipeline</code></td><td>SF CRM</td></tr>
+          <tr><td><span class="badge bp">sf_accounts</span></td><td><code>/api/powerbi/sf_accounts</code></td><td>SF CRM</td></tr>
+          <tr><td><span class="badge bp">sf_by_kam</span></td><td><code>/api/powerbi/sf_by_kam</code></td><td>SF CRM</td></tr>
+          <tr><td><span class="badge bp">sf_monthly</span></td><td><code>/api/powerbi/sf_monthly</code></td><td>SF CRM</td></tr>
+          <tr><td><span class="badge bt">sf_delivery_bridge</span></td><td><code>/api/powerbi/sf_delivery_bridge</code></td><td>Bridge</td></tr>
+          <tr><td><span class="badge bt">sf_delivery_gap</span></td><td><code>/api/powerbi/sf_delivery_gap</code></td><td>Bridge</td></tr>
+          <tr><td><span class="badge bb">fact_issues</span></td><td><code>/api/powerbi/fact_issues</code></td><td>Organic</td></tr>
+          <tr><td><span class="badge bb">fact_all_orders</span></td><td><code>/api/powerbi/fact_all_orders</code></td><td>Organic</td></tr>
+          <tr><td><span class="badge bb">fact_sla</span></td><td><code>/api/powerbi/fact_sla</code></td><td>Organic</td></tr>
+          <tr><td><span class="badge bk">dim_status/tracker/user</span></td><td><code>/api/powerbi/dim_*</code></td><td>Dims</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:10px;font-size:10px;color:var(--muted)">
+        Auth: <code style="font-size:9px;background:var(--light);padding:2px 6px;border-radius:3px">X-Webhook-Token: 9b116faf…</code>
+      </div>
+    </div>
+    <div class="chart-card accent">
+      <div class="ct" style="margin-bottom:12px">Step 2 — Key Relationships</div>
+      <div style="font-size:11px;line-height:2.1">
+        <div>&#128995; <strong>sf_pipeline[order_number]</strong> &#8594; fact_issues (via order_number CF) <span class="badge ba">Bridge</span></div>
+        <div>&#128309; <strong>sf_pipeline[created_date]</strong> &#8594; DimDate[Date]</div>
+        <div>&#128309; <strong>sf_pipeline[account_name]</strong> &#8594; sf_accounts[account_name]</div>
+        <div>&#128309; <strong>sf_pipeline[account_owner]</strong> &#8594; sf_by_kam[account_owner]</div>
+        <div>&#128309; <strong>fact_issues[status_id]</strong> &#8594; dim_status[status_id]</div>
+        <div>&#128309; <strong>fact_issues[issue_id]</strong> &#8594; fact_sla[issue_id] <span class="badge bg">1:M</span></div>
+      </div>
+    </div>
+    <div class="chart-card accent">
+      <div class="ct" style="margin-bottom:12px">Step 3 — Key DAX Measures</div>
+      <pre style="font-size:9.5px;background:#1e1e2e;color:#cdd6f4;padding:12px;border-radius:6px;overflow-x:auto;line-height:1.7">SF Pipeline MRR =
+  SUM(sf_pipeline[mrr_zmw])
+
+SF Accepted MRR =
+  CALCULATE(SUM(sf_pipeline[mrr_zmw]),
+    sf_pipeline[sf_status]="Accepted by Service Delivery")
+
+Orders In Organic =
+  COUNTROWS(sf_delivery_bridge)
+
+Coverage Rate % =
+  DIVIDE([Orders In Organic],
+    CALCULATE(COUNTROWS(sf_pipeline),
+      sf_pipeline[delivery_required]=TRUE), 0)
+
+Delivery Gap MRR =
+  CALCULATE(SUM(sf_pipeline[mrr_zmw]),
+    sf_pipeline[sf_status]="Accepted by Service Delivery",
+    sf_pipeline[in_organic]=FALSE)
+
+Organic MRR =
+  CALCULATE(SUM(fact_all_orders[mrr_zmw]),
+            dim_status[is_closed]=FALSE)
+
+SF vs Organic Coverage % =
+  DIVIDE([Organic MRR], [SF Pipeline MRR], 0)</pre>
+    </div>
+    <div class="chart-card accent">
+      <div class="ct" style="margin-bottom:12px">Step 4 — Pages to Build in PowerBI</div>
+      <table style="font-size:11px">
+        <thead><tr><th>Page</th><th>Primary Source</th><th>Key Visual</th></tr></thead>
+        <tbody>
+          <tr><td>SF Executive</td><td>sf_pipeline + sf_monthly</td><td>KPI cards + Funnel</td></tr>
+          <tr><td>SF Accounts</td><td>sf_accounts</td><td>Matrix + TopN bar</td></tr>
+          <tr><td>KAM Leaderboard</td><td>sf_by_kam</td><td>Table + Cond. format</td></tr>
+          <tr><td>Coverage Funnel</td><td>sf_pipeline (in_organic flag)</td><td>Funnel + Gauge</td></tr>
+          <tr><td>Delivery Gap</td><td>sf_delivery_gap</td><td>Table sorted MRR desc</td></tr>
+          <tr><td>Organic Summary</td><td>fact_issues + dim_*</td><td>KPI cards + Charts</td></tr>
+          <tr><td>Pipeline by Stage</td><td>fact_issues + dim_status</td><td>Funnel + Issues table</td></tr>
+          <tr><td>SLA Performance</td><td>fact_sla</td><td>Gauge + Matrix</td></tr>
+          <tr><td>Active WIP</td><td>fact_all_orders (active_wip=true)</td><td>Filtered table</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SNOW OVERVIEW ═══ -->
+<div class="page" id="page-snow-overview">
+  <div class="section-title">SNow Service Delivery — ZM Groups · Mar 2026 onwards</div>
+  <div id="snowLoadingMsg" style="text-align:center;padding:40px;color:#64748b;font-size:14px;">
+    <div style="width:32px;height:32px;border:3px solid #dde3f0;border-top-color:#1e40af;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px;"></div>
+    Loading live data from ServiceNow…
+  </div>
+  <div id="snowContent" style="display:none">
+    <div class="kpi-grid" style="margin-bottom:16px">
+      <div class="kpi purple" style="cursor:pointer" onclick="showSnowDT('all')"><div class="kpi-label">Total Requests</div><div class="kpi-value purple" id="snTotal">—</div><div class="kpi-sub">Mar 2026 onwards ↗</div></div>
+      <div class="kpi amber" style="cursor:pointer" onclick="showSnowDT('open')"><div class="kpi-label">Open</div><div class="kpi-value amber" id="snOpen">—</div><div class="kpi-sub">Awaiting action ↗</div></div>
+      <div class="kpi" style="background:#1e40af;cursor:pointer" onclick="showSnowDT('wip')"><div class="kpi-label" style="color:rgba(255,255,255,.8)">Work in Progress</div><div class="kpi-value" style="color:#fff" id="snWip">—</div><div class="kpi-sub" style="color:rgba(255,255,255,.6)">Active delivery ↗</div></div>
+      <div class="kpi teal" style="cursor:pointer" onclick="showSnowDT('complete')"><div class="kpi-label">Closed Complete</div><div class="kpi-value teal" id="snComplete">—</div><div class="kpi-sub">Successfully delivered ↗</div></div>
+      <div class="kpi red" style="cursor:pointer" onclick="showSnowDT('overdue')"><div class="kpi-label">Overdue</div><div class="kpi-value red" id="snOverdue">—</div><div class="kpi-sub">Past due date ↗</div></div>
+    </div>
+    <div class="charts-row" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="chart-card">
+        <div class="ct">Requests by State</div>
+        <div style="height:200px"><canvas id="cSnowState"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="ct">Monthly Intake (Mar 2026+)</div>
+        <div style="height:200px"><canvas id="cSnowMonthly"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="ct">Delivery Stage Breakdown — top stages by volume</div>
+      <div style="height:240px"><canvas id="cSnowStageSummary"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SNOW BY STAGE ═══ -->
+<div class="page" id="page-snow-stage">
+  <div class="section-title">SNow — Pipeline by Delivery Stage</div>
+  <div id="snowStageLoading" style="text-align:center;padding:40px;color:#64748b;font-size:14px;">Loading…</div>
+  <div id="snowStageContent" style="display:none">
+    <div class="chart-card" style="margin-bottom:16px">
+      <div class="ct">Orders per Stage (bar)</div>
+      <div style="height:280px"><canvas id="cSnowStageBar"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="ct">Stage Detail</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--light)">
+          <th style="padding:6px 10px;text-align:left;font-weight:600">Stage</th>
+          <th style="padding:6px 10px;text-align:right;font-weight:600">Count</th>
+          <th style="padding:6px 10px;text-align:right;font-weight:600">% of Total</th>
+          <th style="padding:6px 10px;text-align:left;font-weight:600">Share</th>
+        </tr></thead>
+        <tbody id="snowStageTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SNOW PIPELINE ═══ -->
+<div class="page" id="page-snow-pipeline">
+  <div class="section-title">SNow — Live Request Pipeline</div>
+  <div id="snowPipelineLoading" style="text-align:center;padding:40px;color:#64748b;font-size:14px;">Loading…</div>
+  <div id="snowPipelineContent" style="display:none">
+    <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
+      <input id="snowSearch" type="text" placeholder="Search number, description, account…"
+        oninput="filterSnowPipeline()"
+        style="flex:1;max-width:360px;padding:5px 10px;border:1px solid #dde3f0;border-radius:6px;font-size:12px">
+      <span id="snowPipelineCount" style="font-size:11px;color:#64748b"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--light)">
+          <th style="padding:6px 8px;text-align:left;font-weight:600;white-space:nowrap">Number</th>
+          <th style="padding:6px 8px;text-align:left;font-weight:600">Description</th>
+          <th style="padding:6px 8px;text-align:left;font-weight:600;white-space:nowrap">Stage</th>
+          <th style="padding:6px 8px;text-align:left;font-weight:600;white-space:nowrap">State</th>
+          <th style="padding:6px 8px;text-align:left;font-weight:600">Account</th>
+          <th style="padding:6px 8px;text-align:left;font-weight:600;white-space:nowrap">Group</th>
+          <th style="padding:6px 8px;text-align:left;font-weight:600;white-space:nowrap">Opened</th>
+          <th style="padding:6px 8px;text-align:left;font-weight:600;white-space:nowrap">Due</th>
+        </tr></thead>
+        <tbody id="snowPipelineBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- DRILLTHROUGH OVERLAY -->
+<div class="dt-overlay" id="dtOverlay" onclick="closeDT(event)">
+  <div class="dt-panel">
+    <div class="dt-hdr">
+      <div class="dt-title" id="dtTitle">Detail</div>
+      <button class="dt-close" onclick="closeDT(null,true)">&#10005;</button>
+    </div>
+    <div class="dt-body" id="dtBody"></div>
+  </div>
+</div>
+
+<script>
+// ═══ LIVE DATA FROM CONTROLLER ═══════════════════════════
+let SF      = <%= @sf_json.html_safe %>;
+let ORGANIC = <%= @organic_json.html_safe %>;
+let BRIDGE  = <%= @bridge_json.html_safe %>;
+const USD_RATE = <%= @usd_rate %>;
+
+const PAL = ['#1a3a6b','#273c88','#3a5cbf','#60a5fa','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#065f46','#92400e'];
+const fmt  = n => (!n||n===0) ? '—' : 'ZMW '+Number(n).toLocaleString('en-US',{maximumFractionDigits:0});
+const fmtK = n => (!n||n===0) ? '—' : (n>=1000000 ? (n/1000000).toFixed(2)+'M' : (n/1000).toFixed(0)+'K');
+const fmtU = n => (!n||n===0) ? '' : ' · USD '+Number(n).toLocaleString('en-US',{maximumFractionDigits:0});
+const fmtUK= n => (!n||n===0) ? '' : ' · USD '+(n>=1000000?(n/1000000).toFixed(2)+'M':(n/1000).toFixed(0)+'K');
+const n2s  = n => Number(n).toLocaleString('en-US',{maximumFractionDigits:0});
+
+// ═══ NAVIGATION ══════════════════════════════════════════
+function showGroup(group, btn){
+  document.querySelectorAll('.nav-group-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t=>{
+    t.classList.remove('group-visible','active');
+    if(t.dataset.group===group) t.classList.add('group-visible');
+  });
+  const first=document.querySelector(`.nav-tab[data-group="${group}"]`);
+  if(first){ first.classList.add('active'); showTab(first.getAttribute('onclick').match(/'([^']+)'/)[1],first); }
+  document.getElementById('orgFilterBar').style.display  = group==='organic' ? 'flex' : 'none';
+  document.getElementById('snowFilterBar').style.display = group==='snow'    ? 'flex' : 'none';
+  if(group==='snow' && !SNOW_LOADED){ fetchSnowData(); }
+}
+function showTab(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(btn) btn.classList.add('active');
+}
+
+// ═══ FILTERS — AJAX ══════════════════════════════════════
+let _debTimer;
+function debouncedFilter(){ clearTimeout(_debTimer); _debTimer=setTimeout(fetchFiltered,600); }
+function applyFilters(){ fetchFiltered(); }
+function clearFilters(){
+  ['fSegment','fKam','fSfStatus','fTracker','fAssignee','fOrgStatus','fAccount','fOppType'].forEach(id=>{
+    document.querySelectorAll('#'+id+' input[type=checkbox]').forEach(c=>c.checked=false);
+    msUpdateBtn(id);
+  });
+  ['fOrderNum','fReqNum','fAcctNum'].forEach(id=>document.getElementById(id).value='');
+  ['fDateFrom','fDateTo'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fActiveWip').checked=false;
+  document.getElementById('fOverdue').checked=false;
+  fetchFiltered();
+}
+
+const getMulti = id => Array.from(document.querySelectorAll('#'+id+' input[type=checkbox]:checked')).map(c=>c.value);
+
+async function fetchFiltered(){
+  const params = new URLSearchParams();
+  getMulti('fSegment').forEach(v=>params.append('segment[]',v));
+  getMulti('fKam').forEach(v=>params.append('kam[]',v));
+  getMulti('fSfStatus').forEach(v=>params.append('sf_status[]',v));
+  getMulti('fTracker').forEach(v=>params.append('tracker[]',v));
+  getMulti('fAssignee').forEach(v=>params.append('assignee[]',v));
+  getMulti('fOrgStatus').forEach(v=>params.append('org_status[]',v));
+  getMulti('fAccount').forEach(v=>params.append('account[]',v));
+  getMulti('fOppType').forEach(v=>params.append('opp_type[]',v));
+  params.set('order_number',   document.getElementById('fOrderNum').value);
+  params.set('request_number', document.getElementById('fReqNum').value);
+  params.set('acct_number',    document.getElementById('fAcctNum').value);
+  params.set('date_from',      document.getElementById('fDateFrom').value);
+  params.set('date_to',        document.getElementById('fDateTo').value);
+  params.set('active_wip',     document.getElementById('fActiveWip').checked ? 'true' : '');
+  params.set('overdue_only',   document.getElementById('fOverdue').checked ? 'true' : '');
+  const wipSel = document.getElementById('wipMonth');
+  if(wipSel && wipSel.value){ const [wy,wm]=wipSel.value.split('-'); params.set('wip_year',wy); params.set('wip_month',wm); }
+  const hint = document.getElementById('filterHint');
+  hint.textContent = 'Filtering…';
+  document.getElementById('filterSpinner').style.display = 'inline-block';
+  try {
+    const res  = await fetch(`/snow_organic_dashboard/filter?${params}`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    if(!res.ok) throw new Error('Filter request failed');
+    const data = await res.json();
+    SF = data.sf; ORGANIC = data.organic; BRIDGE = data.bridge;
+    renderAll();
+    const anyActive = ['segment[]','kam[]','sf_status[]','tracker[]','assignee[]','org_status[]','account[]','opp_type[]']
+      .some(k=>params.getAll(k).length>0);
+    hint.textContent = anyActive
+      ? `Filtered · ${n2s(SF.kpi.total)} SF subs · ${n2s(ORGANIC.kpi.total)} in delivery · Live ${data.generated_at}`
+      : `FY27 · ${n2s(SF.kpi.total)} SF subscriptions · ${n2s(ORGANIC.kpi.total)} in delivery · Live ${data.generated_at}`;
+  } catch(e) {
+    hint.textContent = 'Filter error — please retry';
+    console.error(e);
+  } finally {
+    document.getElementById('filterSpinner').style.display = 'none';
+  }
+}
+
+function renderAll(){
+  populateKpis();
+  buildBridgeFunnel();
+  buildNlMonthlyTable();
+  buildSfAcctTable(SF.top_accounts);
+  buildKamTable(SF.kams);
+  buildGapTable(SF.gap);
+  buildOrgPipelineTable(ORGANIC.all_orders);
+  buildWipTable();
+  buildAcctBars('sfAcctBars', SF.top_accounts, 'n', 'mrr');
+  buildAcctBars('orgAcctBars',    ORGANIC.top_accounts, 'a', 'mrr');
+  buildAcctBars('orgRevAcctBars', ORGANIC.top_accounts, 'a', 'mrr');
+  updateAllCharts();
+}
+
+function updateAllCharts(){
+  // SF Monthly trend
+  ch('cSfMonthly', c => {
+    c.data.labels = SF.monthly.map(m=>m.m);
+    c.data.datasets[0].data = SF.monthly.map(m=>m.subs);
+    c.data.datasets[1].data = SF.monthly.map(m=>m.mrr);
+  });
+  // SF Status funnel
+  ch('cSfStatus', c => {
+    c.data.labels = SF.statuses.map(s=>s.s.replace('Service Delivery is not required','Not Required').replace('Service Delivery','SD'));
+    c.data.datasets[0].data = SF.statuses.map(s=>s.cnt);
+  });
+  // SF MRR by status
+  const sfMrrData = SF.statuses.filter(s=>s.mrr>0);
+  ch('cSfMrrByStatus', c => {
+    c.data.labels = sfMrrData.map(s=>s.s.substring(0,22)+'…');
+    c.data.datasets[0].data = sfMrrData.map(s=>s.mrr);
+  });
+  // SF Opp type donut
+  ch('cSfOppType', c => {
+    c.data.labels = SF.opp_types.map(o=>o.t);
+    c.data.datasets[0].data = SF.opp_types.map(o=>o.cnt);
+  });
+  // SF Accounts donut
+  ch('cSfAcctMrr', c => {
+    const top8 = SF.top_accounts.slice(0,8);
+    c.data.labels = top8.map(a=>a.n.substring(0,18));
+    c.data.datasets[0].data = top8.map(a=>a.mrr);
+  });
+  // KAM MRR
+  ch('cKamMrr', c => {
+    const top10 = SF.kams.slice(0,10);
+    c.data.labels = top10.map(k=>k.k.split(' ')[0]);
+    c.data.datasets[0].data = top10.map(k=>k.mrr);
+  });
+  // KAM delivery stacked
+  ch('cKamDelivery', c => {
+    const top8 = SF.kams.slice(0,8);
+    c.data.labels = top8.map(k=>k.k.split(' ')[0]);
+    c.data.datasets[0].data = top8.map(k=>k.organic);
+    c.data.datasets[1].data = top8.map(k=>Math.max(0,k.accepted-k.organic));
+    c.data.datasets[2].data = top8.map(k=>k.in_qual);
+  });
+  // New Logo monthly
+  ch('cNlAccts', c => {
+    c.data.labels = SF.monthly.map(m=>m.m);
+    c.data.datasets[0].data = SF.monthly.map(m=>m.accounts);
+    c.data.datasets[1].data = SF.monthly.map(m=>m.nl_accts);
+    c.data.datasets[2].data = SF.monthly.map(m=>m.nl_mrr);
+  });
+  ch('cNlMrr', c => {
+    c.data.labels = SF.monthly.map(m=>m.m);
+    c.data.datasets[0].data = SF.monthly.map(m=>m.nl_mrr);
+    c.data.datasets[1].data = SF.monthly.map(m=>m.mrr-m.nl_mrr);
+  });
+  // Bridge monthly
+  ch('cBridgeMonthly', c => {
+    c.data.labels = BRIDGE.monthly.map(m=>m.m);
+    c.data.datasets[0].data = BRIDGE.monthly.map(m=>m.subs);
+    c.data.datasets[1].data = BRIDGE.monthly.map(m=>m.organic);
+  });
+  // Gap by KAM
+  ch('cGapByKam', c => {
+    c.data.labels = BRIDGE.gap_by_kam.map(k=>k.kam.split(' ')[0]);
+    c.data.datasets[0].data = BRIDGE.gap_by_kam.map(k=>k.gap_mrr);
+  });
+  // Bridge opp type
+  ch('cBridgeOppType', c => {
+    c.data.labels = SF.opp_types.map(o=>o.t);
+    c.data.datasets[0].data = SF.opp_types.map(o=>o.cnt);
+  });
+  // Organic monthly
+  ch('cOrgMonthly', c => {
+    c.data.labels = ORGANIC.monthly.map(m=>m.m);
+    c.data.datasets[0].data = ORGANIC.monthly.map(m=>m.cnt);
+  });
+  // Organic opp type donut
+  ch('cOrgOppType', c => {
+    c.data.labels = ORGANIC.opp_types.map(o=>o.t);
+    c.data.datasets[0].data = ORGANIC.opp_types.map(o=>o.n);
+  });
+  // Organic assignee
+  ch('cOrgAssignee', c => {
+    c.data.labels = ORGANIC.assignees.map(a=>a.a);
+    c.data.datasets[0].data = ORGANIC.assignees.map(a=>a.n);
+  });
+  // Organic SLA donut
+  ch('cOrgSla', c => {
+    const breach = ORGANIC.kpi.sla_total - ORGANIC.kpi.sla_ok;
+    c.data.datasets[0].data = [breach, ORGANIC.kpi.sla_ok];
+  });
+  // Organic status
+  ch('cOrgStatus', c => {
+    c.data.labels = ORGANIC.statuses.map(s=>s.s);
+    c.data.datasets[0].data = ORGANIC.statuses.map(s=>s.n);
+  });
+  // Organic MRR by opp type
+  ch('cOrgMrrOpp', c => {
+    const m={};
+    ORGANIC.all_orders.forEach(o=>{const k=o.opp||'Unknown';m[k]=(m[k]||0)+(o.mrr||0);});
+    const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);
+    c.data.labels=s.map(x=>x[0]);
+    c.data.datasets[0].data=s.map(x=>x[1]);
+  });
+  // SLA hours
+  ch('cSlaHours', c => {
+    c.data.labels = ORGANIC.sla_avg.map(s=>s.s);
+    c.data.datasets[0].data = ORGANIC.sla_avg.map(s=>s.h);
+    c.data.datasets[0].backgroundColor = ORGANIC.sla_avg.map(s=>s.h>48?'#dc2626':'#d97706');
+  });
+  // SLA breach stacked
+  ch('cSlaBreach', c => {
+    c.data.labels = ORGANIC.sla_avg.map(s=>s.s);
+    c.data.datasets[0].data = ORGANIC.sla_avg.map(s=>s.breached||0);
+    c.data.datasets[1].data = ORGANIC.sla_avg.map(s=>s.on_time||0);
+  });
+}
+function ch(id, fn){ if(CHARTS[id]){ fn(CHARTS[id]); CHARTS[id].update('none'); } }
+
+// ═══ KPI POPULATION ══════════════════════════════════════
+function populateKpis(){
+  const s=SF.kpi, o=ORGANIC.kpi, b=BRIDGE;
+  // SF overview
+  document.getElementById('kSfTotal').textContent    = n2s(s.total);
+  document.getElementById('kSfSub').textContent      = n2s(s.accounts)+' accounts · '+SF.monthly.length+' months';
+  document.getElementById('kSfMrr').textContent      = fmtK(s.mrr_zmw);
+  document.getElementById('kSfNrr').textContent      = fmtK(s.nrr_zmw);
+  document.getElementById('kNlAccts').textContent    = n2s(s.new_logo_accounts);
+  document.getElementById('kNlSub').textContent      = n2s(s.new_logo_orders)+' orders · New Business only';
+  document.getElementById('kNlMrr').textContent      = fmtK(s.new_logo_mrr);
+  const nlPct = s.mrr_zmw>0?Math.round(s.new_logo_mrr/s.mrr_zmw*100):0;
+  document.getElementById('kNlPct').textContent      = nlPct+'% of total pipeline';
+  document.getElementById('kAccepted').textContent   = n2s(s.accepted);
+  document.getElementById('kAcceptedMrr').textContent= 'MRR ZMW '+fmtK(s.accepted_mrr);
+  document.getElementById('kInQual').textContent     = n2s(s.in_qual);
+  document.getElementById('kInQualMrr').textContent  = 'MRR ZMW '+fmtK(s.qual_mrr);
+  document.getElementById('kDelivered').textContent  = n2s(s.delivered);
+  document.getElementById('kDeliveredMrr').textContent= 'MRR ZMW '+fmtK(s.delivered_mrr);
+  document.getElementById('kRejected').textContent   = n2s(s.rejected);
+  document.getElementById('kRejectedMrr').textContent= 'MRR ZMW '+fmtK(s.rejected_mrr);
+  document.getElementById('kNotReq').textContent     = n2s(s.not_required);
+  // KAM leaderboard
+  document.getElementById('kKamCount').textContent   = n2s(SF.kams.length);
+  if(SF.kams.length){
+    const topMrr=SF.kams[0], topDel=[...SF.kams].sort((a,b)=>b.pct-a.pct)[0];
+    const topOrd=[...SF.kams].sort((a,b)=>b.orders-a.orders)[0];
+    const avgDel=SF.kams.reduce((s,k)=>s+k.pct,0)/SF.kams.length;
+    document.getElementById('kTopKam').textContent       = topMrr.k.split(' ')[0]+' '+topMrr.k.split(' ')[1];
+    document.getElementById('kTopKamMrr').textContent    = 'ZMW '+fmtK(topMrr.mrr);
+    document.getElementById('kTopDelivery').textContent  = topDel.k.split(' ')[0];
+    document.getElementById('kTopDeliveryPct').textContent= topDel.pct.toFixed(1)+'% delivered';
+    document.getElementById('kMostOrders').textContent   = topOrd.k.split(' ')[0];
+    document.getElementById('kMostOrdersCnt').textContent= n2s(topOrd.orders)+' subscriptions';
+    document.getElementById('kAvgDelivery').textContent  = avgDel.toFixed(1)+'%';
+  }
+  // New logos page 2
+  document.getElementById('nl2Accts').textContent    = n2s(s.new_logo_accounts);
+  document.getElementById('nl2Orders').textContent   = n2s(s.new_logo_orders);
+  document.getElementById('nl2Mrr').textContent      = fmtK(s.new_logo_mrr);
+  document.getElementById('nl2Pct').textContent      = 'ZMW · '+nlPct+'% of pipeline';
+  document.getElementById('nl2OtherMrr').textContent = fmtK(s.mrr_zmw - s.new_logo_mrr);
+  document.getElementById('nl2Delivered').textContent= n2s(s.delivered);
+  // Bridge alert
+  const gapCount=b.funnel[2]?b.funnel[2].val - (b.funnel[3]?b.funnel[3].val:0):0;
+  document.getElementById('bridgeAlertTitle').textContent =
+    n2s(gapCount)+' orders accepted for delivery but NOT yet in Organic — ZMW '+fmtK(b.gap_mrr)+' MRR at risk';
+  document.getElementById('gapAlertTitle').textContent =
+    n2s(SF.gap.length)+' gap orders shown — ZMW '+fmtK(b.gap_mrr)+' accepted MRR without Organic issue';
+  // Gap KPIs
+  document.getElementById('kGapAccepted').textContent = n2s(gapCount);
+  document.getElementById('kGapMrr').textContent      = fmtK(b.gap_mrr);
+  document.getElementById('kGapInOrganic').textContent= n2s(b.funnel[3]?b.funnel[3].val:0);
+  if(SF.gap.length){
+    const sorted=[...SF.gap].sort((a,b2)=>b2.days-a.days);
+    document.getElementById('kGapOldest').textContent    = sorted[0].days+'d';
+    document.getElementById('kGapOldestAcct').textContent= sorted[0].a.substring(0,20);
+    const avg=Math.round(SF.gap.reduce((s,g)=>s+g.days,0)/SF.gap.length);
+    document.getElementById('kGapAvg').textContent       = avg+'d';
+  }
+  // Organic summary
+  document.getElementById('kOrgTotal').textContent   = n2s(o.total);
+  document.getElementById('kOrgWip').textContent     = n2s(o.wip);
+  document.getElementById('kOrgOverdue').textContent = n2s(o.overdue);
+  document.getElementById('kSlaBreach').textContent  = o.sla_breach+'%';
+  document.getElementById('kSlaBreachSub').textContent= n2s(o.sla_total-o.sla_ok)+' of '+n2s(o.sla_total)+' records';
+  document.getElementById('kOrgMrr').textContent     = fmtK(o.mrr)+(o.mrr_usd?fmtUK(o.mrr_usd):'');
+  document.getElementById('kOrgNrr').textContent     = fmtK(o.nrr)+(o.nrr_usd?fmtUK(o.nrr_usd):'');
+  document.getElementById('kOrgComm').textContent    = n2s(o.commercial);
+  document.getElementById('kOrgC2').textContent      = n2s(o.c2);
+  // Revenue page
+  const covPct = s.mrr_zmw>0 ? (o.mrr/s.mrr_zmw*100).toFixed(1) : '0.0';
+  document.getElementById('kCovPct').textContent  = covPct+'%';
+  document.getElementById('kCovSub').textContent  = 'ZMW '+fmtK(o.mrr)+(o.mrr_usd?' · USD '+fmtK(o.mrr_usd):'')+' of ZMW '+fmtK(s.mrr_zmw)+' SF pipeline';
+  document.getElementById('kRevNrr').textContent  = 'ZMW '+fmtK(o.nrr)+(o.nrr_usd?' · USD '+fmtK(o.nrr_usd):'');
+  document.getElementById('kRevNrrSub').textContent= 'Across '+n2s(o.total)+' active delivery orders';
+  document.getElementById('kWipMrr').textContent  = 'ZMW '+fmtK(ORGANIC.wip_mrr)+(ORGANIC.wip_mrr_usd?fmtUK(ORGANIC.wip_mrr_usd):'');
+  document.getElementById('kWipSub').textContent  = n2s(ORGANIC.wip.length)+' orders ('+n2s(ORGANIC.open_wip||0)+' open, '+n2s(ORGANIC.closed_wip||0)+' delivered)';
+  // SLA page
+  document.getElementById('kSlaBreachRate').textContent  = o.sla_breach+'%';
+  document.getElementById('kSlaBreachDetail').textContent= (o.sla_total-o.sla_ok)+' of '+n2s(o.sla_total)+' records';
+  const avgHrs=ORGANIC.sla_avg.length ? (ORGANIC.sla_avg.reduce((s,r)=>s+r.h,0)/ORGANIC.sla_avg.length).toFixed(1) : '—';
+  document.getElementById('kSlaAvgHours').textContent   = avgHrs+'h';
+  document.getElementById('kSlaOnTime').textContent     = n2s(o.sla_ok);
+  const onTimePct=o.sla_total>0?(o.sla_ok/o.sla_total*100).toFixed(1):'0.0';
+  document.getElementById('kSlaOnTimePct').textContent  = onTimePct+'% of records';
+  document.getElementById('kSlaTotal').textContent      = n2s(o.sla_total);
+  // SLA health bar
+  const breachPct=(o.sla_total-o.sla_ok)/Math.max(o.sla_total,1)*100;
+  document.getElementById('slaOkBar').style.width    = onTimePct+'%';
+  document.getElementById('slaOkBar').textContent    = 'On Time '+onTimePct+'%';
+  document.getElementById('slaBreachBar').style.width= breachPct.toFixed(1)+'%';
+  document.getElementById('slaBreachBar').textContent= 'Breached '+o.sla_breach+'%';
+  document.getElementById('slaOkLabel').textContent  = n2s(o.sla_ok)+' on time';
+  document.getElementById('slaBreachLabel').textContent= n2s(o.sla_total-o.sla_ok)+' breached';
+  // Active WIP page
+  document.getElementById('kWipCount').textContent   = n2s(ORGANIC.wip.length);
+  document.getElementById('kWipOpenSub').textContent = n2s(ORGANIC.open_wip||0)+' open · '+n2s(ORGANIC.closed_wip||0)+' delivered';
+  document.getElementById('kWipMrrCard').textContent = fmtK(ORGANIC.wip_mrr);
+  document.getElementById('kWipNrrCard').textContent = fmtK(ORGANIC.wip_nrr||0);
+  document.getElementById('kWipMrrUsd').textContent  = ORGANIC.wip_mrr_usd ? '$'+n2s(ORGANIC.wip_mrr_usd) : '—';
+  document.getElementById('kWipNrrUsd').textContent  = ORGANIC.wip_nrr_usd ? '$'+n2s(ORGANIC.wip_nrr_usd) : '—';
+  document.getElementById('kWipComm').textContent    = n2s(ORGANIC.comm_wip);
+  document.getElementById('kWipC2').textContent      = n2s(ORGANIC.c2_wip);
+  document.getElementById('kWipAge').textContent     = ORGANIC.avg_wip_age+'d';
+  // Filter hint
+  document.getElementById('filterHint').textContent  =
+    'FY27 · '+n2s(s.total)+' SF subscriptions · '+n2s(o.total)+' in delivery';
+}
+
+// ═══ DRILLTHROUGH ════════════════════════════════════════
+function showDT(type){
+  const title=document.getElementById('dtTitle'), body=document.getElementById('dtBody');
+  const s=SF.kpi, o=ORGANIC.kpi;
+  if(type==='sf-total'){
+    title.textContent='SF Pipeline — All Subscriptions (FY27)';
+    body.innerHTML=`<div class="dt-kpis">
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(s.total)}</div><div class="dt-kpi-lbl">Total Subs</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(s.accounts)}</div><div class="dt-kpi-lbl">Accounts</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${fmtK(s.mrr_zmw)}</div><div class="dt-kpi-lbl">MRR ZMW</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${fmtK(s.nrr_zmw)}</div><div class="dt-kpi-lbl">NRR ZMW</div></div>
+    </div>${sfStatusTable()}`;
+  } else if(type==='sf-mrr'){
+    title.textContent='SF Pipeline MRR Breakdown';
+    body.innerHTML=`<div class="dt-kpis">
+      <div class="dt-kpi"><div class="dt-kpi-val">${fmtK(s.mrr_zmw)}</div><div class="dt-kpi-lbl">Total MRR</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${fmtK(s.accepted_mrr)}</div><div class="dt-kpi-lbl">Accepted</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${fmtK(s.qual_mrr)}</div><div class="dt-kpi-lbl">In Qualification</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${fmtK(s.delivered_mrr)}</div><div class="dt-kpi-lbl">Delivered</div></div>
+    </div>${sfStatusTable()}`;
+  } else if(type==='open'){
+    title.textContent='All Open Organic Orders';
+    body.innerHTML=`<div class="dt-kpis">
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(o.total)}</div><div class="dt-kpi-lbl">Open Orders</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(o.commercial)}</div><div class="dt-kpi-lbl">Commercial</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(o.c2)}</div><div class="dt-kpi-lbl">C2</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${fmtK(o.mrr)}</div><div class="dt-kpi-lbl">MRR ZMW</div></div>
+    </div>${orgIssueTable(ORGANIC.all_orders)}`;
+  } else if(type==='wip'||type==='wip-open'||type==='wip-closed'||type==='wip-comm'||type==='wip-c2'){
+    let wipRows = ORGANIC.wip;
+    if(type==='wip-open')   wipRows = wipRows.filter(o=>!o.closed);
+    if(type==='wip-closed') wipRows = wipRows.filter(o=> o.closed);
+    if(type==='wip-comm')   wipRows = wipRows.filter(o=>o.tracker==='Commercial Orders');
+    if(type==='wip-c2')     wipRows = wipRows.filter(o=>o.tracker==='C2');
+    const openCnt     = ORGANIC.open_wip||0, closedCnt = ORGANIC.closed_wip||0;
+    const labelMap    = {'wip':'All Active WIP','wip-open':'Active WIP — Open','wip-closed':'Active WIP — Delivered','wip-comm':'Active WIP — Commercial','wip-c2':'Active WIP — C2'};
+    title.textContent = labelMap[type]||'Active WIP Orders';
+    body.innerHTML=`<div class="dt-kpis">
+      <div class="dt-kpi" onclick="showDT('wip')"       style="cursor:pointer"><div class="dt-kpi-val">${n2s(ORGANIC.wip.length)}</div><div class="dt-kpi-lbl">Total WIP</div></div>
+      <div class="dt-kpi" onclick="showDT('wip-open')"  style="cursor:pointer"><div class="dt-kpi-val">${n2s(openCnt)}</div><div class="dt-kpi-lbl">Still Open</div></div>
+      <div class="dt-kpi" onclick="showDT('wip-closed')" style="cursor:pointer"><div class="dt-kpi-val" style="color:#0d9488">${n2s(closedCnt)}</div><div class="dt-kpi-lbl">Delivered</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${fmtK(ORGANIC.wip_mrr)}</div><div class="dt-kpi-lbl">MRR ZMW</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${fmtK(ORGANIC.wip_nrr||0)}</div><div class="dt-kpi-lbl">NRR ZMW</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${ORGANIC.wip_mrr_usd?'$'+n2s(ORGANIC.wip_mrr_usd):'—'}</div><div class="dt-kpi-lbl">MRR USD</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${ORGANIC.wip_nrr_usd?'$'+n2s(ORGANIC.wip_nrr_usd):'—'}</div><div class="dt-kpi-lbl">NRR USD</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(ORGANIC.comm_wip)}</div><div class="dt-kpi-lbl">Commercial</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(ORGANIC.c2_wip)}</div><div class="dt-kpi-lbl">C2</div></div>
+    </div>${orgIssueTable(wipRows)}`;
+  } else if(type==='overdue'){
+    const ov=ORGANIC.all_orders.filter(o=>o.overdue);
+    title.textContent='Overdue Orders ('+ov.length+')';
+    const pct=ORGANIC.kpi.total>0?(ov.length/ORGANIC.kpi.total*100).toFixed(1):'0';
+    body.innerHTML=`<div class="dt-kpis">
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(ov.length)}</div><div class="dt-kpi-lbl">Overdue</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(o.overdue)}</div><div class="dt-kpi-lbl">Total Overdue</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${pct}%</div><div class="dt-kpi-lbl">Of Open Orders</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${fmtK(ov.reduce((s,r)=>s+r.mrr,0))}</div><div class="dt-kpi-lbl">Overdue MRR</div></div>
+    </div>${orgIssueTable(ov)}`;
+  }
+  document.getElementById('dtOverlay').classList.add('open');
+}
+function sfNewLogoDT(){
+  const s=SF.kpi;
+  const nlPct=s.mrr_zmw>0?Math.round(s.new_logo_mrr/s.mrr_zmw*100):0;
+  const title=document.getElementById('dtTitle'), body=document.getElementById('dtBody');
+  title.textContent='New Logo Analysis — FY27';
+  body.innerHTML=`<div class="dt-kpis">
+    <div class="dt-kpi"><div class="dt-kpi-val">${n2s(s.new_logo_accounts)}</div><div class="dt-kpi-lbl">New Logo Accounts</div></div>
+    <div class="dt-kpi"><div class="dt-kpi-val">${n2s(s.new_logo_orders)}</div><div class="dt-kpi-lbl">New Logo Orders</div></div>
+    <div class="dt-kpi"><div class="dt-kpi-val">${fmt(s.new_logo_mrr)}</div><div class="dt-kpi-lbl">New Logo Diff MRR</div></div>
+    <div class="dt-kpi"><div class="dt-kpi-val">${nlPct}%</div><div class="dt-kpi-lbl">of Total Pipeline</div></div>
+  </div>
+  <table style="width:100%;font-size:11px;border-collapse:collapse;margin-top:12px">
+    <thead><tr style="background:#f0f2f8"><th style="padding:6px;text-align:left">Month</th>
+      <th style="text-align:right">NL Accounts</th><th style="text-align:right">NL Orders</th>
+      <th style="text-align:right">NL Diff MRR (ZMW)</th><th style="text-align:right">% of Total</th></tr></thead>
+    <tbody>${SF.monthly.map(m=>`<tr style="border-bottom:1px solid #f0f2f8">
+      <td style="padding:5px 6px"><strong>${m.m}</strong></td>
+      <td style="text-align:right;color:#7c3aed;font-weight:bold">${n2s(m.nl_accts)}</td>
+      <td style="text-align:right">${n2s(m.nl_orders)}</td>
+      <td style="text-align:right;color:#d97706;font-weight:bold">${fmt(m.nl_mrr)}</td>
+      <td style="text-align:right">${m.mrr>0?Math.round(m.nl_mrr/m.mrr*100)+'%':'—'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+  document.getElementById('dtOverlay').classList.add('open');
+}
+function sfStatusTable(){
+  return `<div class="tbl"><table><thead><tr><th>SF Status</th><th>Count</th><th>MRR (ZMW)</th></tr></thead>
+    <tbody>${SF.statuses.map(s=>`<tr><td>${s.s}</td><td>${n2s(s.cnt)}</td><td>${fmt(s.mrr)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+let _dtSort = {col: 'date', dir: 'asc'};
+let _dtRows = [];
+function orgIssueTable(rows, skipSort){
+  _dtRows = rows;
+  if(!skipSort) _dtSort = {col: 'date', dir: 'asc'};
+  return _orgIssueTableHtml();
+}
+function _orgIssueTableHtml(){
+  const rows = [..._dtRows].sort((a,b)=>{
+    const col = _dtSort.col;
+    let av = col==='date' ? (a.date||'') : col==='mrr' ? (a.mrr||a.mrr_zmw||0) : col==='age' ? (a.age||0) : '';
+    let bv = col==='date' ? (b.date||'') : col==='mrr' ? (b.mrr||b.mrr_zmw||0) : col==='age' ? (b.age||0) : '';
+    if(av<bv) return _dtSort.dir==='asc'?-1:1;
+    if(av>bv) return _dtSort.dir==='asc'?1:-1;
+    return 0;
+  });
+  const arrow = d => _dtSort.col===d ? (_dtSort.dir==='asc'?' ▲':' ▼') : '';
+  const th = (col,lbl) => `<th style="cursor:pointer;user-select:none" onclick="dtSortBy('${col}')">${lbl}${arrow(col)}</th>`;
+  return `<div class="tbl"><table><thead><tr>
+    <th>#</th><th>Account</th><th>Order</th><th>Tracker</th><th>Status</th>
+    ${th('date','Date')}${th('mrr','MRR')}${th('age','Age')}
+    <th>Assignee</th></tr></thead>
+    <tbody>${rows.map(o=>`<tr onclick="window.open('/issues/${o.id||o.issue_id}','_blank')">
+      <td><strong>#${o.id||o.issue_id}</strong></td>
+      <td>${((o.account||o.a||'—')+'').substring(0,22)}</td>
+      <td><code>${o.order||o.order_number||'—'}</code></td>
+      <td>${o.tracker||o.tracker_name||'—'}</td>
+      <td><span class="badge bb">${(o.status||o.status_name||'—').substring(0,22)}</span></td>
+      <td>${o.date||'—'}</td>
+      <td>${fmt(o.mrr||o.mrr_zmw)}</td>
+      <td>${o.age||o.age_days||0}d</td>
+      <td>${o.assignee||o.assignee_name||'—'}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+function dtSortBy(col){
+  if(_dtSort.col===col){ _dtSort.dir = _dtSort.dir==='asc'?'desc':'asc'; }
+  else { _dtSort = {col, dir: col==='date'||col==='age' ? 'asc' : 'desc'}; }
+  document.getElementById('dtBody').querySelector('.tbl').outerHTML = _orgIssueTableHtml();
+}
+function closeDT(e,force){ if(force||e.target===document.getElementById('dtOverlay')) document.getElementById('dtOverlay').classList.remove('open'); }
+
+// ═══ BRIDGE FUNNEL ═══════════════════════════════════════
+function buildBridgeFunnel(){
+  const el=document.getElementById('bridgeFunnel');
+  el.innerHTML=BRIDGE.funnel.map(s=>`
+    <div class="funnel-step">
+      <div class="funnel-label">${s.label}</div>
+      <div class="funnel-bar-wrap">
+        <div class="funnel-fill" style="width:${s.pct}%;background:${s.color}">${n2s(s.val)}</div>
+      </div>
+      <div class="funnel-val">${n2s(s.val)}</div>
+      <div class="funnel-pct">${s.pct}%</div>
+    </div>`).join('');
+}
+
+// ═══ PROGRESS BARS ═══════════════════════════════════════
+function buildAcctBars(elId, data, nameKey, valKey){
+  if(!document.getElementById(elId))return;
+  const max=Math.max(...data.map(d=>d[valKey]));
+  document.getElementById(elId).innerHTML=data.slice(0,12).map(d=>`
+    <div class="prow">
+      <div class="plabel" title="${d[nameKey]}">${(d[nameKey]+'').substring(0,22)}</div>
+      <div class="pbar"><div class="pfill" style="width:${Math.max(3,Math.round(d[valKey]/max*100))}%"></div></div>
+      <div class="pval">${fmtK(d[valKey])}</div>
+    </div>`).join('');
+}
+
+// ═══ TABLES ══════════════════════════════════════════════
+function buildSfAcctTable(data){
+  data=data||SF.top_accounts;
+  document.getElementById('sfAcctTable').innerHTML=data.map(a=>`<tr>
+    <td><strong>${a.n}</strong></td>
+    <td><span class="badge ${a.seg==='Wholesale'?'bp':'bb'}">${a.seg||'—'}</span></td>
+    <td>${a.kam||'—'}</td>
+    <td>${n2s(a.subs)}</td><td>${n2s(a.orders)}</td>
+    <td>${fmt(a.mrr)}</td><td>${fmt(a.nrr)}</td>
+    <td style="color:#7c3aed;font-weight:bold;text-align:center">${a.new_logo_count||a.orders||0}</td>
+    <td>${n2s(a.accepted)}</td><td>${n2s(a.delivered)}</td>
+    <td>${n2s(a.in_qual)}</td><td>${n2s(a.rejected)}</td>
+    <td>${a.organic>0?`<span class="badge bg">${a.organic} &#10003;</span>`:'<span class="badge bk">—</span>'}</td>
+  </tr>`).join('');
+}
+function buildKamTable(data){
+  data=data||SF.kams;
+  document.getElementById('kamTable').innerHTML=data.map(k=>`<tr>
+    <td><strong>${k.k}</strong></td>
+    <td>${n2s(k.accts)}</td><td>${n2s(k.subs)}</td><td>${n2s(k.orders)}</td>
+    <td>${fmt(k.mrr)}</td><td>${fmt(k.nrr)}</td>
+    <td>${n2s(k.accepted)}</td><td>${n2s(k.delivered)}</td><td>${n2s(k.in_qual)}</td>
+    <td>${n2s(k.organic)}</td>
+    <td><span class="badge ${k.pct>=10?'bg':k.pct>=5?'ba':'br'}">${k.pct}%</span></td>
+  </tr>`).join('');
+}
+function buildGapTable(data){
+  data=data||SF.gap;
+  document.getElementById('gapTable').innerHTML=data.map((g,i)=>`<tr>
+    <td>${i+1}</td>
+    <td><code>${g.o}</code></td>
+    <td><strong>${(g.a+'').substring(0,26)}</strong></td>
+    <td>${g.kam||'—'}</td>
+    <td><span class="badge ${g.st==='Accepted by Service Delivery'?'br':'ba'}">${(g.st+'').replace('Service Delivery','SD')}</span></td>
+    <td><span class="badge bb">${g.ot||'—'}</span></td>
+    <td><strong>${fmt(g.mrr)}</strong></td>
+    <td>${fmt(g.nrr)}</td>
+    <td><span class="badge ${g.days>60?'br':g.days>30?'ba':'bg'}">${g.days}d</span></td>
+    <td>${g.m||'—'}</td>
+  </tr>`).join('');
+}
+function buildOrgPipelineTable(data){
+  data=data||ORGANIC.all_orders;
+  document.getElementById('orgPipelineTable').innerHTML=data.map(o=>`<tr onclick="window.open('/issues/${o.id}','_blank')">
+    <td><strong>#${o.id}</strong></td>
+    <td>${((o.account||'')+'').substring(0,22)}</td>
+    <td><code>${o.order||'—'}</code></td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${o.opp_name||''}">${o.opp_name||'—'}</td>
+    <td><span class="badge bb">${(o.status||'').substring(0,22)}</span></td>
+    <td><span class="badge bp">${o.opp||'—'}</span></td>
+    <td>${fmt(o.mrr)}</td>
+    <td style="color:#0891b2">${o.mrr_usd?'$'+n2s(o.mrr_usd):'—'}</td>
+    <td>${o.assignee||'—'}</td>
+    <td>${o.age}d</td>
+    <td>${o.overdue?'<span class="badge br">OVERDUE</span>':'<span class="badge bg">OK</span>'}</td>
+  </tr>`).join('');
+}
+function onWipMonthChange(){ fetchFiltered(); }
+
+function buildWipTable(){
+  // Show lock badge + meta bar
+  const meta = ORGANIC.wip_meta;
+  const badge = document.getElementById('wipLockBadge');
+  const metaBar = document.getElementById('wipMetaBar');
+  if(meta){
+    badge.style.display='inline-flex';
+    if(meta.locked){
+      badge.textContent='🔒 Locked ' + meta.at + (meta.by?' · '+meta.by:'');
+      badge.style.background='#dcfce7'; badge.style.color='#14532d';
+      metaBar.style.display='block';
+      metaBar.innerHTML=`<strong>Locked snapshot</strong> — ${n2s(meta.target_count)} orders at lock time`
+        +(meta.uplift_count>0?` · <span style="color:#0891b2;font-weight:600">+${meta.uplift_count} uplift</span> (closed after lock within month)`:'')
+        +` · Target MRR: <strong>${fmt(meta.target_mrr)}</strong>`;
+    } else {
+      badge.textContent='🔓 Not locked — ' + (meta.month_label||'');
+      badge.style.background='#fef3c7'; badge.style.color='#92400e';
+      metaBar.style.display='block';
+      metaBar.style.background='#fffbeb'; metaBar.style.borderColor='#fde68a'; metaBar.style.color='#78350f';
+      metaBar.innerHTML=`<strong>${meta.month_label}</strong> has no locked snapshot. `
+        +`Lock it on the <a href="/snow_monthly_target" target="_blank" style="color:#b45309;font-weight:600;">Monthly Target page</a> `
+        +`to capture a point-in-time view. Select <strong>Live (current)</strong> to see all active WIP now.`;
+    }
+  } else {
+    badge.style.display='none';
+    metaBar.style.display='none';
+  }
+
+  if(ORGANIC.wip_meta && !ORGANIC.wip_meta.locked && ORGANIC.wip.length===0){
+    document.getElementById('wipTable').innerHTML=`<tr><td colspan="14" style="text-align:center;padding:24px;color:#92400e;font-style:italic;">
+      No locked snapshot for ${ORGANIC.wip_meta.month_label}. Lock the target first, or select "Live (current)" above.
+    </td></tr>`;
+    return;
+  }
+
+  document.getElementById('wipTable').innerHTML=ORGANIC.wip.map(o=>{
+    const rowStyle = o.closed ? 'background:#f0fdfa;opacity:0.85' : (o.uplift ? 'background:#f0f9ff' : '');
+    const tags = [
+      o.closed  ? '<span class="badge" style="background:#0d9488;color:#fff;font-size:9px">Delivered</span>' : '',
+      o.uplift  ? '<span class="badge" style="background:#dbeafe;color:#1e40af;font-size:9px">uplift</span>' : ''
+    ].filter(Boolean).join(' ');
+    return `<tr onclick="window.open('/issues/${o.id}','_blank')" style="${rowStyle}">
+      <td><strong>#${o.id}</strong></td>
+      <td><span class="badge bb">${o.tracker||'—'}</span></td>
+      <td>${((o.account||'')+'').substring(0,22)}</td>
+      <td><code>${o.order||'—'}</code></td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${o.opp_name||''}">${o.opp_name||'—'}</td>
+      <td><span class="badge bg">${(o.status||'').substring(0,22)}</span></td>
+      <td>${o.assignee||'—'}</td>
+      <td>${fmt(o.mrr)}</td>
+      <td style="color:#0891b2">${o.mrr_usd?'$'+n2s(o.mrr_usd):'—'}</td>
+      <td>${fmt(o.nrr)}</td>
+      <td style="color:#0e7490">${o.nrr_usd?'$'+n2s(o.nrr_usd):'—'}</td>
+      <td>${o.due||'—'}</td>
+      <td>${o.age}d</td>
+      <td>${tags}</td>
+    </tr>`;
+  }).join('');
+}
+function buildNlMonthlyTable(){
+  let tot={orders:0,nlA:0,nlO:0,mrr:0,nlMrr:0,nrr:0,acc:0,del:0,org:0};
+  document.getElementById('nlMonthlyTable').innerHTML=SF.monthly.map((m,i)=>{
+    const pct=m.mrr>0?Math.round(m.nl_mrr/m.mrr*100):0;
+    tot.orders+=m.orders; tot.nlA+=m.nl_accts; tot.nlO+=m.nl_orders;
+    tot.mrr+=m.mrr; tot.nlMrr+=m.nl_mrr; tot.nrr+=m.nrr;
+    tot.acc+=m.accepted; tot.del+=m.delivered; tot.org+=m.organic;
+    return `<tr${i%2?' style="background:#fafafe"':''}>
+      <td><strong>${m.m}</strong></td>
+      <td style="text-align:right">${n2s(m.orders)}</td>
+      <td style="text-align:right;color:#7c3aed;font-weight:bold">${n2s(m.nl_accts)}</td>
+      <td style="text-align:right;color:#7c3aed">${n2s(m.nl_orders)}</td>
+      <td style="text-align:right">ZMW ${n2s(m.mrr)}</td>
+      <td style="text-align:right;color:#d97706;font-weight:bold">ZMW ${n2s(m.nl_mrr)}</td>
+      <td style="text-align:right"><span style="background:${pct>=90?'#16a34a':pct>=70?'#d97706':'#3a5cbf'};color:#fff;padding:1px 7px;border-radius:10px;font-size:10px">${pct}%</span></td>
+      <td style="text-align:right">ZMW ${n2s(m.nrr)}</td>
+      <td style="text-align:right;color:#16a34a">${n2s(m.accepted)}</td>
+      <td style="text-align:right">${n2s(m.delivered)}</td>
+      <td style="text-align:right;color:#273c88">${n2s(m.organic)}</td>
+    </tr>`;
+  }).join('');
+  const totPct=tot.mrr>0?Math.round(tot.nlMrr/tot.mrr*100):0;
+  document.getElementById('nlMonthlyTotals').innerHTML=`<tr style="font-weight:bold;border-top:2px solid #94a3b8">
+    <td>FY27 Total</td>
+    <td style="text-align:right">${n2s(tot.orders)}</td>
+    <td style="text-align:right;color:#7c3aed">${n2s(tot.nlA)}</td>
+    <td style="text-align:right;color:#7c3aed">${n2s(tot.nlO)}</td>
+    <td style="text-align:right">ZMW ${n2s(tot.mrr)}</td>
+    <td style="text-align:right;color:#d97706">ZMW ${n2s(tot.nlMrr)}</td>
+    <td style="text-align:right"><span style="background:#16a34a;color:#fff;padding:1px 7px;border-radius:10px;font-size:10px">${totPct}%</span></td>
+    <td style="text-align:right">ZMW ${n2s(tot.nrr)}</td>
+    <td style="text-align:right;color:#16a34a">${n2s(tot.acc)}</td>
+    <td style="text-align:right">${n2s(tot.del)}</td>
+    <td style="text-align:right;color:#273c88">${n2s(tot.org)}</td>
+  </tr>`;
+}
+
+// ═══ MULTISELECT DROPDOWNS ═══════════════════════════════
+function msUpdateBtn(id){
+  const wrap=document.getElementById(id); if(!wrap) return;
+  const sel=Array.from(wrap.querySelectorAll('input[type=checkbox]:checked'));
+  const btn=wrap.querySelector('.ms-btn');
+  const def=wrap.dataset.label||'Select';
+  btn.textContent = sel.length===0 ? def : (sel.length===1 ? sel[0].parentNode.textContent.trim() : sel.length+' selected');
+  btn.classList.toggle('has-sel', sel.length>0);
+}
+function initAllMs(){
+  document.querySelectorAll('.ms').forEach(wrap=>{
+    const id=wrap.id, btn=wrap.querySelector('.ms-btn'), panel=wrap.querySelector('.ms-panel');
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      document.querySelectorAll('.ms-panel.open').forEach(p=>{ if(p!==panel) p.classList.remove('open'); });
+      panel.classList.toggle('open');
+    });
+    wrap.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+      cb.addEventListener('change',()=>{ msUpdateBtn(id); debouncedFilter(); });
+    });
+    msUpdateBtn(id);
+  });
+  document.addEventListener('click',()=>document.querySelectorAll('.ms-panel.open').forEach(p=>p.classList.remove('open')));
+}
+
+// ═══ CHARTS ══════════════════════════════════════════════
+const CHARTS={};
+const defs={responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{labels:{font:{size:10},color:'#1e293b'}}},
+  scales:{x:{ticks:{font:{size:9},color:'#64748b'},grid:{color:'#f0f2f8'}},
+          y:{ticks:{font:{size:9},color:'#64748b'},grid:{color:'#f0f2f8'}}}};
+function mkc(id,type,labels,datasets,extra={}){
+  const ctx=document.getElementById(id); if(!ctx)return null;
+  const c=new Chart(ctx,{type,data:{labels,datasets},options:{...defs,...extra,responsive:true,maintainAspectRatio:false}});
+  CHARTS[id]=c; return c;
+}
+function buildCharts(){
+  // SF Monthly
+  mkc('cSfMonthly','bar',SF.monthly.map(m=>m.m),[
+    {label:'Subscriptions',data:SF.monthly.map(m=>m.subs),backgroundColor:'#273c88',borderRadius:4,yAxisID:'y'},
+    {label:'MRR ZMW',data:SF.monthly.map(m=>m.mrr),type:'line',borderColor:'#d97706',
+     backgroundColor:'rgba(217,119,6,.1)',fill:true,tension:.4,pointRadius:4,yAxisID:'y1'}
+  ],{scales:{y:{ticks:{font:{size:9}}},y1:{position:'right',ticks:{font:{size:9}},grid:{drawOnChartArea:false}}}});
+
+  // SF Status
+  mkc('cSfStatus','bar',
+    SF.statuses.map(s=>s.s.replace('Service Delivery is not required','Not Required').replace('Service Delivery','SD')),
+    [{label:'Subscriptions',data:SF.statuses.map(s=>s.cnt),
+      backgroundColor:['#16a34a','#3a5cbf','#94a3b8','#dc2626','#0891b2','#64748b','#94a3b8'],borderRadius:4}],
+    {plugins:{legend:{display:false}},indexAxis:'y'});
+
+  // SF MRR by status
+  const sfMrrData=SF.statuses.filter(s=>s.mrr>0);
+  mkc('cSfMrrByStatus','bar',sfMrrData.map(s=>s.s.substring(0,22)+'…'),
+    [{label:'MRR (ZMW)',data:sfMrrData.map(s=>s.mrr),
+      backgroundColor:['#16a34a','#3a5cbf','#dc2626','#0891b2','#64748b'],borderRadius:4}],
+    {plugins:{legend:{display:false}}});
+
+  // SF Opp type
+  mkc('cSfOppType','doughnut',SF.opp_types.map(o=>o.t),
+    [{data:SF.opp_types.map(o=>o.cnt),backgroundColor:PAL,borderWidth:2,borderColor:'#fff'}],
+    {plugins:{legend:{position:'right'}},scales:{}});
+
+  // SF Accounts MRR
+  const topAcct=SF.top_accounts.slice(0,8);
+  mkc('cSfAcctMrr','doughnut',topAcct.map(a=>a.n.substring(0,18)),
+    [{data:topAcct.map(a=>a.mrr),backgroundColor:PAL,borderWidth:2,borderColor:'#fff'}],
+    {plugins:{legend:{position:'bottom',labels:{font:{size:9}}}},scales:{}});
+
+  // KAM MRR bar
+  const topKams=SF.kams.slice(0,10);
+  mkc('cKamMrr','bar',topKams.map(k=>k.k.split(' ')[0]),
+    [{label:'Pipeline MRR (ZMW)',data:topKams.map(k=>k.mrr),backgroundColor:'#1a3a6b',borderRadius:4}],
+    {plugins:{legend:{display:false}},indexAxis:'y'});
+
+  // KAM delivery stacked
+  const top8=SF.kams.slice(0,8);
+  mkc('cKamDelivery','bar',top8.map(k=>k.k.split(' ')[0]),[
+    {label:'In Organic',data:top8.map(k=>k.organic),backgroundColor:'#16a34a',borderRadius:0},
+    {label:'Accepted (not Organic)',data:top8.map(k=>Math.max(0,k.accepted-k.organic)),backgroundColor:'#d97706',borderRadius:0},
+    {label:'In Qualification',data:top8.map(k=>k.in_qual),backgroundColor:'#3a5cbf',borderRadius:4},
+  ],{plugins:{legend:{labels:{font:{size:9}}}},scales:{x:{stacked:true},y:{stacked:true}},indexAxis:'y'});
+
+  // New Logo charts
+  mkc('cNlAccts','bar',SF.monthly.map(m=>m.m),[
+    {label:'Total Accounts',data:SF.monthly.map(m=>m.accounts),backgroundColor:'#cbd5e1',borderRadius:4,yAxisID:'y'},
+    {label:'New Logo Accounts',data:SF.monthly.map(m=>m.nl_accts),backgroundColor:'#7c3aed',borderRadius:4,yAxisID:'y'},
+    {label:'New Logo MRR',data:SF.monthly.map(m=>m.nl_mrr),type:'line',borderColor:'#d97706',
+     backgroundColor:'rgba(217,119,6,.1)',fill:false,tension:.4,pointRadius:4,yAxisID:'y1'}
+  ],{scales:{y:{ticks:{font:{size:9}}},y1:{position:'right',ticks:{font:{size:9}},grid:{drawOnChartArea:false}}}});
+
+  mkc('cNlMrr','bar',SF.monthly.map(m=>m.m),[
+    {label:'New Logo MRR',data:SF.monthly.map(m=>m.nl_mrr),backgroundColor:'#7c3aed',borderRadius:4},
+    {label:'Other MRR',data:SF.monthly.map(m=>m.mrr-m.nl_mrr),backgroundColor:'#cbd5e1',borderRadius:4},
+  ],{plugins:{legend:{labels:{font:{size:9}}}},scales:{x:{stacked:true},y:{stacked:true}}});
+
+  // Bridge monthly
+  mkc('cBridgeMonthly','bar',BRIDGE.monthly.map(m=>m.m),[
+    {label:'SF Subscriptions',data:BRIDGE.monthly.map(m=>m.subs),backgroundColor:'#273c88aa',borderRadius:4},
+    {label:'In Organic',data:BRIDGE.monthly.map(m=>m.organic),backgroundColor:'#16a34a',borderRadius:4},
+  ],{plugins:{legend:{labels:{font:{size:10}}}}});
+
+  // Gap by KAM
+  mkc('cGapByKam','bar',BRIDGE.gap_by_kam.map(k=>k.kam.split(' ')[0]),
+    [{label:'Gap MRR (ZMW)',data:BRIDGE.gap_by_kam.map(k=>k.gap_mrr),backgroundColor:'#dc2626',borderRadius:4}],
+    {plugins:{legend:{display:false}},indexAxis:'y'});
+
+  // Bridge opp type
+  mkc('cBridgeOppType','doughnut',SF.opp_types.map(o=>o.t),
+    [{data:SF.opp_types.map(o=>o.cnt),backgroundColor:PAL,borderWidth:2,borderColor:'#fff'}],
+    {plugins:{legend:{position:'bottom',labels:{font:{size:9}}}},scales:{}});
+
+  // Organic Monthly
+  mkc('cOrgMonthly','line',ORGANIC.monthly.map(m=>m.m),
+    [{label:'New Issues',data:ORGANIC.monthly.map(m=>m.cnt),borderColor:'#273c88',
+     backgroundColor:'rgba(39,60,136,.1)',fill:true,tension:.4,pointRadius:5}]);
+
+  // Organic Opp Type
+  mkc('cOrgOppType','doughnut',ORGANIC.opp_types.map(o=>o.t),
+    [{data:ORGANIC.opp_types.map(o=>o.n),backgroundColor:PAL,borderWidth:2,borderColor:'#fff'}],
+    {plugins:{legend:{position:'right'}},scales:{}});
+
+  // Organic Assignee
+  mkc('cOrgAssignee','bar',ORGANIC.assignees.map(a=>a.a),
+    [{label:'Open Orders',data:ORGANIC.assignees.map(a=>a.n),backgroundColor:['#1a3a6b','#7c3aed','#16a34a','#d97706'],borderRadius:6}],
+    {plugins:{legend:{display:false}},indexAxis:'y'});
+
+  // Organic SLA donut
+  const slaOk=ORGANIC.kpi.sla_ok, slaBreach=ORGANIC.kpi.sla_total-ORGANIC.kpi.sla_ok;
+  mkc('cOrgSla','doughnut',['Breached','On Time'],
+    [{data:[slaBreach,slaOk],backgroundColor:['#dc2626','#16a34a'],borderWidth:2,borderColor:'#fff'}],
+    {plugins:{legend:{position:'right'}},scales:{}});
+
+  // Organic status
+  mkc('cOrgStatus','bar',ORGANIC.statuses.map(s=>s.s),
+    [{label:'Orders',data:ORGANIC.statuses.map(s=>s.n),backgroundColor:'#273c88',borderRadius:4}],
+    {plugins:{legend:{display:false}},indexAxis:'y'});
+
+  // Org MRR by opp type
+  const ot={};ORGANIC.all_orders.forEach(o=>{ot[o.opp]=(ot[o.opp]||0)+(o.mrr||0);});
+  mkc('cOrgMrrOpp','bar',Object.keys(ot),
+    [{label:'MRR (ZMW)',data:Object.values(ot),backgroundColor:['#1a3a6b','#16a34a','#d97706','#dc2626','#7c3aed'],borderRadius:6}],
+    {plugins:{legend:{display:false}}});
+
+  // SLA hours
+  mkc('cSlaHours','bar',ORGANIC.sla_avg.map(s=>s.s),
+    [{label:'Avg Hours',data:ORGANIC.sla_avg.map(s=>s.h),
+      backgroundColor:ORGANIC.sla_avg.map(s=>s.h>48?'#dc2626':'#d97706'),borderRadius:4}],
+    {plugins:{legend:{display:false}},indexAxis:'y'});
+
+  // SLA breach stacked
+  mkc('cSlaBreach','bar',ORGANIC.sla_avg.map(s=>s.s),[
+    {label:'Breached',data:ORGANIC.sla_avg.map(s=>s.breached||0),backgroundColor:'#dc2626',borderRadius:0},
+    {label:'On Time', data:ORGANIC.sla_avg.map(s=>s.on_time||0),backgroundColor:'#16a34a',borderRadius:4},
+  ],{plugins:{legend:{labels:{font:{size:10}}}},indexAxis:'y',scales:{x:{stacked:true},y:{stacked:true}}});
+}
+
+// ═══ SNOW LIVE ═══════════════════════════════════════════
+let SNOW = null;
+let SNOW_LOADED = false;
+
+const SNOW_STATE_COLORS = {
+  'Open':'#f59e0b','Work in Progress':'#1e40af','Closed Complete':'#16a34a',
+  'Closed Incomplete':'#dc2626','Closed Skipped':'#94a3b8'
+};
+const SNOW_STAGE_COLORS = ['#1e40af','#3b82f6','#0891b2','#0d9488','#16a34a','#84cc16','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
+
+function snowHideLoaders(){
+  ['snowLoadingMsg','snowStageLoading','snowPipelineLoading'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display='none';
+  });
+  ['snowContent','snowStageContent','snowPipelineContent'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display='';
+  });
+}
+
+async function fetchSnowData(){
+  document.getElementById('snowSpinner').style.display='inline-block';
+  document.getElementById('snowHint').textContent='Loading from ServiceNow…';
+  const params=new URLSearchParams();
+  getMulti('fSnowState').forEach(v=>params.append('state[]',v));
+  getMulti('fSnowStage').forEach(v=>params.append('stage[]',v));
+  getMulti('fSnowGroup').forEach(v=>params.append('snow_group[]',v));
+  try {
+    const res=await fetch(`/snow_organic_dashboard/snow_live?${params}`,{headers:{'X-Requested-With':'XMLHttpRequest'}});
+    if(!res.ok) throw new Error('SNow request failed: '+res.status);
+    SNOW=await res.json();
+    SNOW_LOADED=true;
+    renderSnow();
+    const anyFilter=params.toString().length>0;
+    document.getElementById('snowHint').textContent=anyFilter
+      ? `Filtered · ${n2s(SNOW.kpi.total)} requests · Live ${SNOW.generated_at}`
+      : `Live · ${n2s(SNOW.kpi.total)} requests (Mar 2026+) · ${SNOW.generated_at}`;
+  } catch(e){
+    document.getElementById('snowHint').textContent='Error loading SNow data — retry?';
+    console.error(e);
+  } finally {
+    document.getElementById('snowSpinner').style.display='none';
+  }
+}
+
+function clearSnowFilters(){
+  ['fSnowState','fSnowStage','fSnowGroup'].forEach(id=>{
+    document.querySelectorAll('#'+id+' input[type=checkbox]').forEach(c=>c.checked=false);
+    msUpdateBtn(id);
+  });
+  SNOW_LOADED=false;
+  fetchSnowData();
+}
+
+function renderSnow(){
+  if(!SNOW) return;
+  snowHideLoaders();
+
+  // KPI cards
+  document.getElementById('snTotal').textContent    = n2s(SNOW.kpi.total);
+  document.getElementById('snOpen').textContent     = n2s(SNOW.kpi.open);
+  document.getElementById('snWip').textContent      = n2s(SNOW.kpi.wip);
+  document.getElementById('snComplete').textContent = n2s(SNOW.kpi.complete);
+  document.getElementById('snOverdue').textContent  = n2s(SNOW.kpi.overdue);
+
+  // State donut
+  const stateLabels = SNOW.by_state.map(s=>s.state);
+  const stateCounts = SNOW.by_state.map(s=>s.cnt);
+  const stateColors = stateLabels.map(l=>SNOW_STATE_COLORS[l]||'#94a3b8');
+  if(CHARTS['cSnowState']){ CHARTS['cSnowState'].destroy(); delete CHARTS['cSnowState']; }
+  mkc('cSnowState','doughnut',stateLabels,
+    [{data:stateCounts,backgroundColor:stateColors,borderWidth:2,borderColor:'#fff'}],
+    {plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:12}}}});
+
+  // Monthly bar
+  if(CHARTS['cSnowMonthly']){ CHARTS['cSnowMonthly'].destroy(); delete CHARTS['cSnowMonthly']; }
+  mkc('cSnowMonthly','bar',SNOW.monthly.map(m=>m.m),
+    [{label:'Requests',data:SNOW.monthly.map(m=>m.cnt),backgroundColor:'#1e40af',borderRadius:4}],
+    {plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:9}}},y:{ticks:{font:{size:9}}}}});
+
+  // Sort stages by pipeline order
+  const STAGE_ORDER = ['New','Awaiting site survey','Awaiting approval','Awaiting acceptance','Installation','Configuration','Testing','Complete'];
+  const sortedStages = [...SNOW.by_stage].sort((a,b)=>{
+    const ai=STAGE_ORDER.indexOf(a.stage), bi=STAGE_ORDER.indexOf(b.stage);
+    return (ai<0?99:ai)-(bi<0?99:bi);
+  });
+
+  // Stage summary bar (overview page) — pipeline order
+  if(CHARTS['cSnowStageSummary']){ CHARTS['cSnowStageSummary'].destroy(); delete CHARTS['cSnowStageSummary']; }
+  mkc('cSnowStageSummary','bar',sortedStages.map(s=>s.stage),
+    [{label:'Requests',data:sortedStages.map(s=>s.cnt),
+      backgroundColor:SNOW_STAGE_COLORS,borderRadius:4}],
+    {plugins:{legend:{display:false}},indexAxis:'y',
+     scales:{x:{ticks:{font:{size:9}}},y:{ticks:{font:{size:9}}}}});
+
+  // Stage detail page
+  if(CHARTS['cSnowStageBar']){ CHARTS['cSnowStageBar'].destroy(); delete CHARTS['cSnowStageBar']; }
+  mkc('cSnowStageBar','bar',sortedStages.map(s=>s.stage),
+    [{label:'Requests',data:sortedStages.map(s=>s.cnt),
+      backgroundColor:SNOW_STAGE_COLORS.concat(SNOW_STAGE_COLORS),borderRadius:4}],
+    {plugins:{legend:{display:false}},indexAxis:'y',
+     scales:{x:{ticks:{font:{size:9}}},y:{ticks:{font:{size:9},maxRotation:0}}}});
+
+  const stageTotal=sortedStages.reduce((a,s)=>a+s.cnt,0)||1;
+  document.getElementById('snowStageTableBody').innerHTML=sortedStages.map((s,i)=>`
+    <tr style="border-top:1px solid var(--border)">
+      <td style="padding:5px 10px">${s.stage||'—'}</td>
+      <td style="padding:5px 10px;text-align:right;font-weight:600">${n2s(s.cnt)}</td>
+      <td style="padding:5px 10px;text-align:right;color:#64748b">${(s.cnt/stageTotal*100).toFixed(1)}%</td>
+      <td style="padding:5px 10px;min-width:120px">
+        <div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(100,(s.cnt/stageTotal*100)).toFixed(1)}%;background:${SNOW_STAGE_COLORS[i%SNOW_STAGE_COLORS.length]};border-radius:4px"></div>
+        </div>
+      </td>
+    </tr>`).join('');
+
+  // Pipeline
+  renderSnowPipeline(SNOW.requests);
+  document.getElementById('snowSearch').value='';
+}
+
+let SNOW_ALL_REQUESTS = [];
+function renderSnowPipeline(rows){
+  SNOW_ALL_REQUESTS=rows||[];
+  filterSnowPipeline();
+}
+
+function filterSnowPipeline(){
+  const q=(document.getElementById('snowSearch').value||'').toLowerCase();
+  const filtered=q ? SNOW_ALL_REQUESTS.filter(r=>
+    (r.num||'').toLowerCase().includes(q)||
+    (r.desc||'').toLowerCase().includes(q)||
+    (r.acct||'').toLowerCase().includes(q)||
+    (r.stage||'').toLowerCase().includes(q)
+  ) : SNOW_ALL_REQUESTS;
+  document.getElementById('snowPipelineCount').textContent=`${n2s(filtered.length)} requests`;
+  const STATE_BADGE={
+    'Open':'background:#fef3c7;color:#92400e',
+    'Work in Progress':'background:#dbeafe;color:#1e3a8a',
+    'Closed Complete':'background:#dcfce7;color:#14532d',
+    'Closed Incomplete':'background:#fee2e2;color:#7f1d1d'
+  };
+  document.getElementById('snowPipelineBody').innerHTML=filtered.map(r=>{
+    const st=r.state||'';
+    const badge=STATE_BADGE[st]||'background:#f1f5f9;color:#475569';
+    const due=r.due?r.due.substring(0,10):'—';
+    const opened=r.opened?r.opened.substring(0,10):'—';
+    const isOverdue=r.due&&r.due<new Date().toISOString()&&(st==='Open'||st==='Work in Progress');
+    return `<tr style="border-top:1px solid var(--border)${isOverdue?';background:#fff5f5':''}">
+      <td style="padding:5px 8px;font-family:monospace;font-size:11px;white-space:nowrap">
+        <a href="https://oneliquidsupport.service-now.com/nav_to.do?uri=sc_request.do?sys_id=${r.sys_id}" target="_blank" style="color:#1e40af;text-decoration:none">${r.num||'—'} ↗</a>
+      </td>
+      <td style="padding:5px 8px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.desc||''}">${r.desc||'—'}</td>
+      <td style="padding:5px 8px;white-space:nowrap;font-size:11px">${r.stage||'—'}</td>
+      <td style="padding:5px 8px;white-space:nowrap">
+        <span style="padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600;${badge}">${st||'—'}</span>
+      </td>
+      <td style="padding:5px 8px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.acct||''}">${r.acct||'—'}</td>
+      <td style="padding:5px 8px;white-space:nowrap;font-size:11px">${(r.group||'').replace('Zambia ','ZM ')}</td>
+      <td style="padding:5px 8px;white-space:nowrap;font-size:11px">${opened}</td>
+      <td style="padding:5px 8px;white-space:nowrap;font-size:11px;${isOverdue?'color:#dc2626;font-weight:700':''}">${due}</td>
+    </tr>`;
+  }).join('');
+}
+
+const SNOW_URL = 'https://oneliquidsupport.service-now.com';
+
+function snowReqTable(rows){
+  const now = new Date();
+  const STATE_BADGE = {
+    'Open':'background:#fef3c7;color:#92400e',
+    'Work in Progress':'background:#dbeafe;color:#1e3a8a',
+    'Closed Complete':'background:#dcfce7;color:#14532d',
+    'Closed Incomplete':'background:#fee2e2;color:#7f1d1d'
+  };
+  return `<div class="tbl"><table><thead><tr>
+    <th>Number</th><th>Description</th><th>Stage</th><th>State</th>
+    <th>Account</th><th>Group</th><th>Opened</th><th>Due</th><th>Days Open</th>
+  </tr></thead><tbody>${rows.map(r=>{
+    const st=r.state||'';
+    const badge=STATE_BADGE[st]||'background:#f1f5f9;color:#475569';
+    const openedDate=r.opened?r.opened.substring(0,10):'—';
+    const dueDate=r.due?r.due.substring(0,10):'—';
+    const daysOpen=r.opened ? Math.floor((now - new Date(r.opened.replace(/\//g,'-')))/(1000*60*60*24)) : '—';
+    const isOverdue=r.due&&r.due<now.toISOString()&&(st==='Open'||st==='Work in Progress');
+    const rowStyle=isOverdue?'background:#fff5f5':'';
+    const snowLink=r.sys_id?`${SNOW_URL}/nav_to.do?uri=sc_request.do?sys_id=${r.sys_id}`:'#';
+    return `<tr style="${rowStyle}">
+      <td><a href="${snowLink}" target="_blank" style="color:#1e40af;text-decoration:none;font-family:monospace;font-size:11px">${r.num||'—'} ↗</a></td>
+      <td title="${r.desc||''}">${(r.desc||'—').substring(0,40)}${(r.desc||'').length>40?'…':''}</td>
+      <td style="white-space:nowrap;font-size:11px">${r.stage||'—'}</td>
+      <td><span style="padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600;${badge}">${st||'—'}</span></td>
+      <td title="${r.acct||''}">${(r.acct||'—').substring(0,20)}${(r.acct||'').length>20?'…':''}</td>
+      <td style="font-size:11px;white-space:nowrap">${(r.group||'').replace('Zambia ','ZM ')}</td>
+      <td style="font-size:11px;white-space:nowrap">${openedDate}</td>
+      <td style="font-size:11px;white-space:nowrap;${isOverdue?'color:#dc2626;font-weight:700':''}">${dueDate}</td>
+      <td style="text-align:right;${daysOpen>30&&(st==='Open'||st==='Work in Progress')?'color:#dc2626;font-weight:700':''}">${typeof daysOpen==='number'?daysOpen+'d':daysOpen}</td>
+    </tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+
+function showSnowDT(type){
+  if(!SNOW) return;
+  const title=document.getElementById('dtTitle'), body=document.getElementById('dtBody');
+  const k=SNOW.kpi;
+  const now=new Date();
+  let rows, label, kpiHtml;
+  if(type==='all'){
+    rows=SNOW.requests;
+    label=`All SNow Requests — Mar 2026+ (${n2s(k.total)})`;
+    kpiHtml=`<div class="dt-kpis">
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(k.total)}</div><div class="dt-kpi-lbl">Total</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(k.open)}</div><div class="dt-kpi-lbl">Open</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(k.wip)}</div><div class="dt-kpi-lbl">WIP</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(k.complete)}</div><div class="dt-kpi-lbl">Complete</div></div>
+    </div>`;
+  } else if(type==='open'){
+    rows=SNOW.requests.filter(r=>r.state==='Open');
+    label=`Open SNow Requests (${n2s(rows.length)})`;
+    kpiHtml=`<div class="dt-kpis">
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(rows.length)}</div><div class="dt-kpi-lbl">Open</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(rows.filter(r=>!r.due||r.due>now.toISOString()).length)}</div><div class="dt-kpi-lbl">On Time</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(rows.filter(r=>r.due&&r.due<now.toISOString()).length)}</div><div class="dt-kpi-lbl">Overdue</div></div>
+    </div>`;
+  } else if(type==='wip'){
+    rows=SNOW.requests.filter(r=>r.state==='Work in Progress');
+    label=`Work in Progress (${n2s(rows.length)})`;
+    kpiHtml=`<div class="dt-kpis">
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(rows.length)}</div><div class="dt-kpi-lbl">WIP</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${rows.length>0?Math.round(rows.reduce((s,r)=>{const d=r.opened?Math.floor((now-new Date(r.opened.replace(/\//g,'-')))/(86400000)):0;return s+d;},0)/rows.length):0}d</div><div class="dt-kpi-lbl">Avg Age</div></div>
+    </div>`;
+  } else if(type==='complete'){
+    rows=SNOW.requests.filter(r=>r.state==='Closed Complete');
+    label=`Closed Complete (${n2s(rows.length)})`;
+    kpiHtml=`<div class="dt-kpis">
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(rows.length)}</div><div class="dt-kpi-lbl">Delivered</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(SNOW.kpi.total>0?Math.round(rows.length/SNOW.kpi.total*100):0)}%</div><div class="dt-kpi-lbl">of Total</div></div>
+    </div>`;
+  } else if(type==='overdue'){
+    rows=SNOW.requests.filter(r=>r.due&&r.due<now.toISOString()&&(r.state==='Open'||r.state==='Work in Progress'));
+    label=`Overdue Requests (${n2s(rows.length)})`;
+    kpiHtml=`<div class="dt-kpis">
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(rows.length)}</div><div class="dt-kpi-lbl">Overdue</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${rows.length>0?Math.round(rows.reduce((s,r)=>{const d=r.due?Math.floor((now-new Date(r.due.replace(/\//g,'-')))/(86400000)):0;return s+d;},0)/rows.length):0}d</div><div class="dt-kpi-lbl">Avg Days Late</div></div>
+      <div class="dt-kpi"><div class="dt-kpi-val">${n2s(SNOW.kpi.total>0?Math.round(rows.length/SNOW.kpi.total*100):0)}%</div><div class="dt-kpi-lbl">of Total</div></div>
+    </div>`;
+  }
+  title.textContent=label;
+  body.innerHTML=(kpiHtml||'')+snowReqTable(rows||[]);
+  document.getElementById('dtOverlay').classList.add('open');
+}
+
+// Wire up SNow ms dropdowns to refetch
+function initSnowFilters(){
+  ['fSnowState','fSnowStage','fSnowGroup'].forEach(id=>{
+    const wrap=document.getElementById(id); if(!wrap) return;
+    wrap.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+      cb.addEventListener('change',()=>{ msUpdateBtn(id); if(SNOW_LOADED){ SNOW_LOADED=false; fetchSnowData(); } });
+    });
+  });
+}
+
+// ═══ INIT ════════════════════════════════════════════════
+initAllMs();
+initSnowFilters();
+populateKpis();
+buildBridgeFunnel();
+buildCharts();
+buildAcctBars('sfAcctBars',  SF.top_accounts, 'n', 'mrr');
+buildAcctBars('orgAcctBars', ORGANIC.top_accounts, 'a', 'mrr');
+buildAcctBars('orgRevAcctBars', ORGANIC.top_accounts, 'a', 'mrr');
+buildNlMonthlyTable();
+buildSfAcctTable();
+buildKamTable();
+buildGapTable();
+buildOrgPipelineTable();
+buildWipTable();
+</script>
+</body>
+</html>

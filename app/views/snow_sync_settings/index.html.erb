@@ -15,6 +15,7 @@
   </div>
   <div style="margin-left:auto;">
     <button id="run-now-btn" class="button">&#9654; Sync Now</button>
+    <button id="retroactive-btn" class="button" style="margin-left:8px;" title="Pull ALL historical SNow records matching current filters, regardless of import date">&#8635; Retroactive Pull</button>
     <span id="run-now-status" style="margin-left:10px; font-style:italic;"></span>
   </div>
 </div>
@@ -75,7 +76,12 @@
     <p>
       <label>Service Delivery Stage <em style="font-weight:normal;">(comma-separated; leave blank to skip filter)</em></label>
       <%= text_field_tag 'settings[poll_delivery_stage]', @settings['poll_delivery_stage'], class: 'wide' %>
-      <em class="info">e.g. <strong>Awaiting acceptance</strong> &nbsp; or &nbsp; Awaiting acceptance,Installation</em>
+      <em class="info">e.g. <strong>Installation</strong> &nbsp; or &nbsp; Installation,Awaiting acceptance</em>
+    </p>
+    <p>
+      <label>Approval State <em style="font-weight:normal;">(comma-separated; leave blank to skip filter)</em></label>
+      <%= text_field_tag 'settings[poll_approval]', @settings['poll_approval'] %>
+      <em class="info">Filter on SNow <code>approval</code> field — e.g. <strong>approved</strong> &nbsp; (leave blank to pull regardless of approval state)</em>
     </p>
     <p>
       <label>Only import requests created in the last</label>
@@ -449,6 +455,36 @@ document.getElementById('run-now-btn').addEventListener('click', function(e) {
   })
   .catch(function(err) {
     status.textContent = 'Request failed: ' + err;
+    btn.disabled = false;
+  });
+});
+
+// ── Retroactive Pull ──────────────────────────────────────────────────────
+document.getElementById('retroactive-btn').addEventListener('click', function(e) {
+  e.preventDefault();
+  if (!confirm('This will pull ALL historical SNow records matching current filters — this may take several minutes and import many records. Continue?')) return;
+  var btn    = this;
+  var status = document.getElementById('run-now-status');
+  btn.disabled = true;
+  status.textContent = 'Running retroactive pull… (may take a few minutes)';
+
+  fetch('<%= snow_sync_retroactive_pull_path %>', {
+    method:  'POST',
+    headers: {
+      'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,
+      'Accept':       'application/json'
+    }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var msg = 'Retroactive: Imported ' + data.imported + '  Skipped: ' + data.skipped;
+    if (data.errors && data.errors.length) msg += '  Errors: ' + data.errors.join('; ');
+    status.textContent = msg;
+    btn.disabled = false;
+    setTimeout(function() { location.reload(); }, 3000);
+  })
+  .catch(function(err) {
+    status.textContent = 'Retroactive pull failed: ' + err;
     btn.disabled = false;
   });
 });

@@ -22,11 +22,6 @@ module SnowSync
         new_status = params.dig(:issue, :status_id).to_i
 
         if @issue.tracker_id == TRACKER_ID
-          # Gate 0: Service Scheduling → Contractor Assignment (KMZ + BOQ required)
-          if @issue.status_id == SERVICE_SCHEDULING && new_status == CONTRACTOR_ASGN
-            Thread.current[:snow_service_scheduling_filenames] = attachment_filenames_from_params
-          end
-
           # Gate 1: Site Survey → Purchase Requisition (contractor must fill CFs + photos + PDF)
           if @issue.status_id == SITE_SURVEY && new_status == PURCHASE_REQ
             Thread.current[:snow_site_survey_filenames] = attachment_filenames_from_params
@@ -59,7 +54,6 @@ module SnowSync
       begin
         super
       ensure
-        Thread.current[:snow_service_scheduling_filenames] = nil
         Thread.current[:snow_site_survey_filenames]       = nil
         Thread.current[:snow_build_approval_sendback]     = nil
         Thread.current[:snow_procurement_pr_ref]          = nil

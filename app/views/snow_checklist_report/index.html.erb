@@ -1,0 +1,155 @@
+<h2>&#9745; Checklist Compliance Report</h2>
+
+<%# ── Summary cards ──────────────────────────────────────────────────── %>
+<div style="display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
+  <% cards = [
+    { label: 'Total Checklists',  value: @summary[:total_checklists],  color: '#2980b9' },
+    { label: 'Fully Completed',   value: @summary[:fully_completed],   color: '#27ae60' },
+    { label: 'In Progress',       value: @summary[:in_progress],       color: '#e67e22' },
+    { label: 'Not Started',       value: @summary[:not_started],       color: '#95a5a6' },
+    { label: 'Overdue Items',     value: @summary[:overdue_items],     color: '#c0392b' },
+    { label: 'Overall Completion',value: "#{@summary[:overall_pct]}%", color: @summary[:overall_pct] >= 80 ? '#27ae60' : @summary[:overall_pct] >= 50 ? '#e67e22' : '#c0392b' },
+  ] %>
+  <% cards.each do |c| %>
+    <div style="padding:14px 24px; border-radius:4px; background:<%= c[:color] %>; color:#fff; min-width:110px; text-align:center;">
+      <div style="font-size:2em; font-weight:bold; line-height:1.1;"><%= c[:value] %></div>
+      <div style="font-size:0.82em; margin-top:2px;"><%= c[:label] %></div>
+    </div>
+  <% end %>
+</div>
+
+<%# ── Filters ────────────────────────────────────────────────────────── %>
+<%= form_tag(snow_checklist_report_path, method: :get, style: 'margin-bottom:18px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;') do %>
+  <label style="font-size:0.9em;">Checklist:</label>
+  <%= select_tag :checklist,
+        options_for_select([['All', '']] + @checklist_names.map { |n| [n, n] }, @filter_checklist),
+        style: 'padding:4px 8px; border-radius:3px;' %>
+  <label style="font-size:0.9em;">Status:</label>
+  <%= select_tag :status,
+        options_for_select([['All', '']] + @status_names.map { |n| [n, n] }, @filter_status),
+        style: 'padding:4px 8px; border-radius:3px;' %>
+  <label style="font-size:0.9em;">Assigned To:</label>
+  <%= select_tag :assignee,
+        options_for_select([['All', '']] + @assignee_names.map { |n| [n, n] }, @filter_assignee),
+        style: 'padding:4px 8px; border-radius:3px;' %>
+  <%= submit_tag 'Filter', style: 'padding:4px 16px; border-radius:3px; cursor:pointer;' %>
+  <% if @filter_checklist || @filter_status || @filter_assignee %>
+    <%= link_to 'Clear', snow_checklist_report_path, style: 'font-size:0.9em; margin-left:6px;' %>
+  <% end %>
+<% end %>
+
+<%# ── By Checklist Type ──────────────────────────────────────────────── %>
+<% if @by_checklist.any? %>
+<h3 style="margin-top:20px;">By Checklist Type</h3>
+<div style="overflow-x:auto;">
+  <table class="list" style="font-size:0.88em; width:auto; min-width:600px;">
+    <thead>
+      <tr>
+        <th style="text-align:left;">Checklist</th>
+        <th style="text-align:right;">Issues</th>
+        <th style="text-align:right;">Total Items</th>
+        <th style="text-align:right;">Completed</th>
+        <th style="text-align:right;">Overdue</th>
+        <th style="text-align:right;">Completion %</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @by_checklist.each do |r| %>
+        <tr>
+          <td><%= link_to r[:title], snow_checklist_report_path(checklist: r[:title]) %></td>
+          <td style="text-align:right;"><%= r[:count] %></td>
+          <td style="text-align:right;"><%= r[:total] %></td>
+          <td style="text-align:right;"><%= r[:done] %></td>
+          <td style="text-align:right; color:<%= r[:overdue] > 0 ? '#c0392b' : 'inherit' %>;"><%= r[:overdue] %></td>
+          <td style="text-align:right;">
+            <span style="display:inline-block; width:50px; background:#3a3f4b; border-radius:3px; overflow:hidden; vertical-align:middle; height:16px; margin-right:6px;">
+              <span style="display:block; height:100%; width:<%= r[:pct] %>%; background:<%= r[:pct] >= 80 ? '#27ae60' : r[:pct] >= 50 ? '#e67e22' : '#c0392b' %>;"></span>
+            </span>
+            <%= r[:pct] %>%
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+<% end %>
+
+<%# ── By Assignee ────────────────────────────────────────────────────── %>
+<% if @by_assignee.any? %>
+<h3 style="margin-top:20px;">By Assigned User</h3>
+<div style="overflow-x:auto;">
+  <table class="list" style="font-size:0.88em; width:auto; min-width:600px;">
+    <thead>
+      <tr>
+        <th style="text-align:left;">Assigned To</th>
+        <th style="text-align:right;">Checklists</th>
+        <th style="text-align:right;">Total Items</th>
+        <th style="text-align:right;">Completed</th>
+        <th style="text-align:right;">Overdue</th>
+        <th style="text-align:right;">Completion %</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @by_assignee.each do |r| %>
+        <tr>
+          <td><%= link_to r[:name], snow_checklist_report_path(assignee: r[:name]) %></td>
+          <td style="text-align:right;"><%= r[:count] %></td>
+          <td style="text-align:right;"><%= r[:total] %></td>
+          <td style="text-align:right;"><%= r[:done] %></td>
+          <td style="text-align:right; color:<%= r[:overdue] > 0 ? '#c0392b' : 'inherit' %>;"><%= r[:overdue] %></td>
+          <td style="text-align:right;">
+            <span style="display:inline-block; width:50px; background:#3a3f4b; border-radius:3px; overflow:hidden; vertical-align:middle; height:16px; margin-right:6px;">
+              <span style="display:block; height:100%; width:<%= r[:pct] %>%; background:<%= r[:pct] >= 80 ? '#27ae60' : r[:pct] >= 50 ? '#e67e22' : '#c0392b' %>;"></span>
+            </span>
+            <%= r[:pct] %>%
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+<% end %>
+
+<%# ── Detailed table ──────────────────────────────────────────────────── %>
+<h3 style="margin-top:20px;">Issue-Level Detail (<%= @rows.size %> checklists)</h3>
+<div style="overflow-x:auto;">
+  <table class="list" style="font-size:0.85em;">
+    <thead>
+      <tr>
+        <th style="text-align:left;">Issue</th>
+        <th style="text-align:left;">Subject</th>
+        <th style="text-align:left;">Status</th>
+        <th style="text-align:left;">Assigned To</th>
+        <th style="text-align:left;">Checklist</th>
+        <th style="text-align:right;">Items</th>
+        <th style="text-align:right;">Done</th>
+        <th style="text-align:right;">Overdue</th>
+        <th style="text-align:right;">Completion</th>
+        <th style="text-align:left;">Next Due</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @rows.each do |r| %>
+        <% pct = r['completion_pct'].to_f %>
+        <tr>
+          <td><%= link_to "##{r['issue_id']}", issue_path(r['issue_id']) %></td>
+          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+              title="<%= h(r['issue_subject']) %>"><%= h(r['issue_subject']) %></td>
+          <td><%= h(r['status_name']) %></td>
+          <td><%= h(r['assigned_to_name']) %></td>
+          <td><%= h(r['checklist_title']) %></td>
+          <td style="text-align:right;"><%= r['total_items'] %></td>
+          <td style="text-align:right;"><%= r['completed_items'] %></td>
+          <td style="text-align:right; color:<%= r['overdue_items'].to_i > 0 ? '#c0392b' : 'inherit' %>;"><%= r['overdue_items'] %></td>
+          <td style="text-align:right;">
+            <span style="display:inline-block; width:40px; background:#3a3f4b; border-radius:3px; overflow:hidden; vertical-align:middle; height:14px; margin-right:4px;">
+              <span style="display:block; height:100%; width:<%= pct %>%; background:<%= pct >= 80 ? '#27ae60' : pct >= 50 ? '#e67e22' : '#c0392b' %>;"></span>
+            </span>
+            <%= pct %>%
+          </td>
+          <td style="font-size:0.9em; color:<%= r['next_due_date'] && Date.parse(r['next_due_date'].to_s) < Date.today ? '#c0392b' : 'inherit' %>;"><%= r['next_due_date'] ? Date.parse(r['next_due_date'].to_s).strftime('%d %b %Y') : '—' %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

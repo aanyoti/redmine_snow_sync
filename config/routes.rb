@@ -2,8 +2,11 @@ Rails.application.routes.draw do
   get  'snow_sync_settings',                 to: 'snow_sync_settings#index',          as: 'snow_sync_settings'
   post 'snow_sync_settings',                 to: 'snow_sync_settings#update'
   post 'snow_sync_settings/run_now',         to: 'snow_sync_settings#run_now',        as: 'snow_sync_run_now'
+  post 'snow_sync_settings/retroactive_pull', to: 'snow_sync_settings#retroactive_pull', as: 'snow_sync_retroactive_pull'
+  get  'snow_export/cto_orders',              to: 'snow_export#cto_orders',              as: 'snow_export_cto_orders'
   post 'snow_sync_settings/test_connection',  to: 'snow_sync_settings#test_connection',  as: 'snow_sync_test_connection'
   post 'snow_sync_settings/recalculate_rates', to: 'snow_sync_settings#recalculate_rates', as: 'snow_sync_recalculate_rates'
+  post 'snow_sync_settings/recalculate_rate',  to: 'snow_sync_settings#recalculate_rate',  as: 'snow_sync_recalculate_rate'
   post 'api/snow_sync/segments',             to: 'snow_sync_webhook#segments',        as: 'snow_sync_segments_webhook'
   get  'api/snow_sync/report',              to: 'snow_sync_webhook#report',          as: 'snow_sync_report'
   post 'api/snow_sync/salesforce_sync',     to: 'snow_sync_webhook#salesforce_sync', as: 'snow_sync_salesforce_sync'
@@ -20,6 +23,10 @@ Rails.application.routes.draw do
   get  'snow_libre_nms/bandwidth',          to: 'snow_libre_nms#bandwidth',          as: 'snow_libre_nms_bandwidth'
 
   get  'snow_sf_pipeline',              to: 'snow_sf_pipeline#index',            as: 'snow_sf_pipeline'
+  get  'snow_checklist_report',         to: 'snow_checklist_report#index',       as: 'snow_checklist_report'
+  get  'snow_organic_dashboard',            to: 'snow_organic_dashboard#index',      as: 'snow_organic_dashboard'
+  get  'snow_organic_dashboard/filter',    to: 'snow_organic_dashboard#filter',     as: 'snow_organic_dashboard_filter'
+  get  'snow_organic_dashboard/snow_live', to: 'snow_organic_dashboard#snow_live',  as: 'snow_organic_dashboard_snow_live'
 
   # PowerBI read-only API
   get  'api/powerbi',                       to: 'snow_powerbi#index',                as: 'snow_powerbi_index'

@@ -23,6 +23,21 @@ class SnowSyncWebhookController < ApplicationController
     render json: { error: 'Internal server error' }, status: :internal_server_error
   end
 
+  SFDC_UPSERT_COLUMNS = %w[
+    subscription_id order_number customer_order_number lt_account_number
+    account_name lt_opp_number opportunity_type customer_segment
+    subscription_number subscription_name primary_service_number
+    service_address service_address_lookup access_type currency
+    contract_term sf_status change_type upgraded_opportunity
+    differential_nrr_amount differential_nrr_currency
+    differential_mrr_amount differential_mrr_currency
+    operating_country account_owner service_delivery_engineer
+    service_delivery_manager service_delivery_reason delivery_milestones
+    milestone_target_date adjusted_days_to_deliver ltk_sdu_internal_process
+    case_number case_owner sf_subject snow_request_number sf_created_date
+    synced_at
+  ].freeze
+
   def salesforce_sync
     unless valid_token?
       render json: { error: 'Unauthorized' }, status: :unauthorized
@@ -35,115 +50,68 @@ class SnowSyncWebhookController < ApplicationController
       return
     end
 
-    results = { processed: 0, upserted: 0, skipped: 0, errors: 0 }
-    conn    = ActiveRecord::Base.connection
+    valid   = records.select { |r| r['subscription_id'].to_s.strip.present? }
+    results = { processed: records.size, upserted: 0, skipped: records.size - valid.size, errors: 0 }
 
-    records.each do |rec|
-      results[:processed] += 1
-      sid = rec['subscription_id'].to_s.strip
-      if sid.blank?
-        results[:skipped] += 1
-        next
+    if valid.any?
+      conn = ActiveRecord::Base.connection
+
+      update_cols = SFDC_UPSERT_COLUMNS - ['subscription_id']
+      set_clause  = update_cols.map { |c| "#{c} = EXCLUDED.#{c}" }.join(",\n          ")
+      col_list    = SFDC_UPSERT_COLUMNS.join(', ')
+
+      valid.each_slice(500) do |batch|
+        values_sql = batch.map do |rec|
+          "(" + [
+            conn.quote(rec['subscription_id'].to_s.strip),
+            conn.quote(rec['order_number']),
+            conn.quote(rec['customer_order_number']),
+            conn.quote(rec['lt_account_number']),
+            conn.quote(rec['account_name']),
+            conn.quote(rec['lt_opp_number']),
+            conn.quote(rec['opportunity_type']),
+            conn.quote(rec['customer_segment']),
+            conn.quote(rec['subscription_number']),
+            conn.quote(rec['subscription_name']),
+            conn.quote(rec['primary_service_number']),
+            conn.quote(rec['service_address']),
+            conn.quote(rec['service_address_lookup']),
+            conn.quote(rec['access_type']),
+            conn.quote(rec['currency']),
+            conn.quote(rec['contract_term'].to_s),
+            conn.quote(rec['sf_status']),
+            conn.quote(rec['change_type']),
+            conn.quote(rec['upgraded_opportunity']),
+            conn.quote(rec['differential_nrr_amount'].to_s),
+            conn.quote(rec['differential_nrr_currency']),
+            conn.quote(rec['differential_mrr_amount'].to_s),
+            conn.quote(rec['differential_mrr_currency']),
+            conn.quote(rec['operating_country']),
+            conn.quote(rec['account_owner']),
+            conn.quote(rec['service_delivery_engineer']),
+            conn.quote(rec['service_delivery_manager']),
+            conn.quote(rec['service_delivery_reason']),
+            conn.quote(rec['delivery_milestones']),
+            conn.quote(rec['milestone_target_date'].to_s),
+            conn.quote(rec['adjusted_days_to_deliver'].to_s),
+            conn.quote(rec['ltk_sdu_internal_process']),
+            conn.quote(rec['case_number']),
+            conn.quote(rec['case_owner']),
+            conn.quote(rec['sf_subject']),
+            conn.quote(rec['snow_request_number']),
+            conn.quote(rec['sf_created_date'].to_s),
+            'NOW()'
+          ].join(', ') + ")"
+        end.join(', ')
+
+        conn.execute(<<~SQL)
+          INSERT INTO salesforce_orders (#{col_list})
+          VALUES #{values_sql}
+          ON CONFLICT (subscription_id) DO UPDATE SET
+            #{set_clause}
+        SQL
+        results[:upserted] += batch.size
       end
-
-      conn.execute(<<~SQL)
-        INSERT INTO salesforce_orders (
-          subscription_id, order_number, customer_order_number, lt_account_number,
-          account_name, lt_opp_number, opportunity_type, customer_segment,
-          subscription_number, subscription_name, primary_service_number,
-          service_address, service_address_lookup, access_type, currency,
-          contract_term, sf_status, change_type, upgraded_opportunity,
-          differential_nrr_amount, differential_nrr_currency,
-          differential_mrr_amount, differential_mrr_currency,
-          operating_country, account_owner, service_delivery_engineer,
-          service_delivery_manager, service_delivery_reason, delivery_milestones,
-          milestone_target_date, adjusted_days_to_deliver, ltk_sdu_internal_process,
-          case_number, case_owner, sf_subject, snow_request_number, sf_created_date,
-          synced_at
-        ) VALUES (
-          #{conn.quote(sid)},
-          #{conn.quote(rec['order_number'])},
-          #{conn.quote(rec['customer_order_number'])},
-          #{conn.quote(rec['lt_account_number'])},
-          #{conn.quote(rec['account_name'])},
-          #{conn.quote(rec['lt_opp_number'])},
-          #{conn.quote(rec['opportunity_type'])},
-          #{conn.quote(rec['customer_segment'])},
-          #{conn.quote(rec['subscription_number'])},
-          #{conn.quote(rec['subscription_name'])},
-          #{conn.quote(rec['primary_service_number'])},
-          #{conn.quote(rec['service_address'])},
-          #{conn.quote(rec['service_address_lookup'])},
-          #{conn.quote(rec['access_type'])},
-          #{conn.quote(rec['currency'])},
-          #{conn.quote(rec['contract_term'].to_s)},
-          #{conn.quote(rec['sf_status'])},
-          #{conn.quote(rec['change_type'])},
-          #{conn.quote(rec['upgraded_opportunity'])},
-          #{conn.quote(rec['differential_nrr_amount'].to_s)},
-          #{conn.quote(rec['differential_nrr_currency'])},
-          #{conn.quote(rec['differential_mrr_amount'].to_s)},
-          #{conn.quote(rec['differential_mrr_currency'])},
-          #{conn.quote(rec['operating_country'])},
-          #{conn.quote(rec['account_owner'])},
-          #{conn.quote(rec['service_delivery_engineer'])},
-          #{conn.quote(rec['service_delivery_manager'])},
-          #{conn.quote(rec['service_delivery_reason'])},
-          #{conn.quote(rec['delivery_milestones'])},
-          #{conn.quote(rec['milestone_target_date'].to_s)},
-          #{conn.quote(rec['adjusted_days_to_deliver'].to_s)},
-          #{conn.quote(rec['ltk_sdu_internal_process'])},
-          #{conn.quote(rec['case_number'])},
-          #{conn.quote(rec['case_owner'])},
-          #{conn.quote(rec['sf_subject'])},
-          #{conn.quote(rec['snow_request_number'])},
-          #{conn.quote(rec['sf_created_date'].to_s)},
-          NOW()
-        )
-        ON CONFLICT (subscription_id) DO UPDATE SET
-          order_number                = EXCLUDED.order_number,
-          customer_order_number       = EXCLUDED.customer_order_number,
-          lt_account_number           = EXCLUDED.lt_account_number,
-          account_name                = EXCLUDED.account_name,
-          lt_opp_number               = EXCLUDED.lt_opp_number,
-          opportunity_type            = EXCLUDED.opportunity_type,
-          customer_segment            = EXCLUDED.customer_segment,
-          subscription_number         = EXCLUDED.subscription_number,
-          subscription_name           = EXCLUDED.subscription_name,
-          primary_service_number      = EXCLUDED.primary_service_number,
-          service_address             = EXCLUDED.service_address,
-          service_address_lookup      = EXCLUDED.service_address_lookup,
-          access_type                 = EXCLUDED.access_type,
-          currency                    = EXCLUDED.currency,
-          contract_term               = EXCLUDED.contract_term,
-          sf_status                   = EXCLUDED.sf_status,
-          change_type                 = EXCLUDED.change_type,
-          upgraded_opportunity        = EXCLUDED.upgraded_opportunity,
-          differential_nrr_amount     = EXCLUDED.differential_nrr_amount,
-          differential_nrr_currency   = EXCLUDED.differential_nrr_currency,
-          differential_mrr_amount     = EXCLUDED.differential_mrr_amount,
-          differential_mrr_currency   = EXCLUDED.differential_mrr_currency,
-          operating_country           = EXCLUDED.operating_country,
-          account_owner               = EXCLUDED.account_owner,
-          service_delivery_engineer   = EXCLUDED.service_delivery_engineer,
-          service_delivery_manager    = EXCLUDED.service_delivery_manager,
-          service_delivery_reason     = EXCLUDED.service_delivery_reason,
-          delivery_milestones         = EXCLUDED.delivery_milestones,
-          milestone_target_date       = EXCLUDED.milestone_target_date,
-          adjusted_days_to_deliver    = EXCLUDED.adjusted_days_to_deliver,
-          ltk_sdu_internal_process    = EXCLUDED.ltk_sdu_internal_process,
-          case_number                 = EXCLUDED.case_number,
-          case_owner                  = EXCLUDED.case_owner,
-          sf_subject                  = EXCLUDED.sf_subject,
-          snow_request_number         = EXCLUDED.snow_request_number,
-          sf_created_date             = EXCLUDED.sf_created_date,
-          synced_at                   = NOW();
-      SQL
-      results[:upserted] += 1
-
-    rescue => e
-      Rails.logger.warn "SnowSync SalesforceSync: error on #{sid}: #{e.message}"
-      results[:errors] += 1
     end
 
     render json: results

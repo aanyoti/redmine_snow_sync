@@ -129,8 +129,37 @@ document.getElementById('target-modal-overlay').addEventListener('click', functi
 </script>
 
 <%# ── Active WIP orders table ─────────────────────────────────────────────── %>
+<%
+  wip_mrr_zmw = sum_cf.(@wip_issues, cf_ids[:mrr_zmw])
+  wip_nrr_zmw = sum_cf.(@wip_issues, cf_ids[:nrr_zmw])
+  wip_mrr_usd = sum_cf.(@wip_issues, cf_ids[:mrr_usd])
+  wip_nrr_usd = sum_cf.(@wip_issues, cf_ids[:nrr_usd])
+  closed_wip  = @wip_issues.count { |i| @closed_ids.include?(i.status_id) }
+  open_wip    = @wip_issues.size - closed_wip
+%>
 <% section_label = @target.locked? ? "Active WIP Orders in Target" : "Current Active WIP Orders" %>
 <h3 style="margin-bottom:8px;"><%= section_label %> <span class="sla-muted" style="font-size:0.8em; font-weight:normal;">(<%= @wip_issues.size %>)</span></h3>
+
+<%# KPI summary cards %>
+<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
+  <%
+    wip_kpis = [
+      { label: 'Total WIP',       value: @wip_issues.size,                         color: '#27ae60',  sub: "#{open_wip} open · #{closed_wip} delivered" },
+      { label: 'MRR (ZMW)',       value: "K #{fmt.(wip_mrr_zmw.round(0))}",        color: '#8e44ad' },
+      { label: 'NRR (ZMW)',       value: "K #{fmt.(wip_nrr_zmw.round(0))}",        color: '#6d28d9' },
+      { label: 'MRR (USD)',       value: "$ #{fmt.(wip_mrr_usd.round(0))}",        color: '#0891b2' },
+      { label: 'NRR (USD)',       value: "$ #{fmt.(wip_nrr_usd.round(0))}",        color: '#0e7490' },
+      { label: 'Delivered',       value: closed_wip,                               color: '#0d9488' },
+    ]
+  %>
+  <% wip_kpis.each do |c| %>
+    <div style="padding:10px 16px; border-radius:4px; background:<%= c[:color] %>; color:#fff; text-align:center; min-width:110px; flex:1;">
+      <div style="font-size:1.4em; font-weight:bold; line-height:1.1;"><%= c[:value] %></div>
+      <div style="font-size:0.74em; margin-top:2px; opacity:0.9;"><%= c[:label] %></div>
+      <% if c[:sub] %><div style="font-size:0.7em; margin-top:1px; opacity:0.75;"><%= c[:sub] %></div><% end %>
+    </div>
+  <% end %>
+</div>
 
 <% if @wip_issues.any? %>
   <%= render partial: 'snow_monthly_target/issue_table',

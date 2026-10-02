@@ -29,9 +29,10 @@
           total_mrr_zmw += mrr_zmw; total_nrr_zmw += nrr_zmw
           set_by    = awip_set_by[issue.id]
           delivered = closed_ids.include?(issue.status_id)
-          row_bg    = delivered ? 'color:#27ae60;' : ''
+          row_bg    = delivered ? 'color:#0d9488;' : ''
+          row_style = delivered ? 'background:rgba(13,148,136,0.07);' : ''
         %>
-        <tr class="<%= i.even? ? 'odd' : 'even' %>">
+        <tr class="<%= i.even? ? 'odd' : 'even' %>" style="<%= row_style %>">
           <td><%= link_to "##{issue.id}", issue_path(issue.id) %></td>
           <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<%= account %>">
             <%= account %>

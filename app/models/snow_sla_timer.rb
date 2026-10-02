@@ -3,24 +3,24 @@ class SnowSlaTimer < ActiveRecord::Base
   belongs_to :status, class_name: 'IssueStatus'
 
   # Default SLA targets (days) — overridden by Admin → ServiceNow Sync settings.
-  # MTTI budget: 10 (pre-build) + 7 (build) + 13 (post-build) = 30 days
+  # MTTI budget: ~4.5 (pre-build) + 4 (build) + 7 (post-build) = 15.5 days
   DEFAULT_SLA_DAYS = {
-    # ── Commercial Orders (Tracker 14) — Pre-Build (10 days) ─────────────────
-    'Service Request Review'   => 1,
-    'Service Scheduling'       => 1,
+    # ── Commercial Orders (Tracker 14) — Pre-Build ───────────────────────────
+    'Service Request Review'   => 0.5,
+    'Service Scheduling'       => 0.5,
     'Contractor-Assignment'    => 1,
-    'Site Survey'              => 3,
-    'Purchase-Requisition'     => 3,
-    'Build Approval'           => 1,
-    # ── Build (7 days) ───────────────────────────────────────────────────────
-    'Fiber Build'              => 7,
-    # ── Post-Build (13 days) ─────────────────────────────────────────────────
-    'Splicing'                 => 2,
+    'Site Survey'              => 1,
+    'Quote Submission'         => 1,
+    'Build Approval'           => 0.5,
+    # ── Build (4 days) ───────────────────────────────────────────────────────
+    'Fiber Build'              => 4,
+    # ── Post-Build ───────────────────────────────────────────────────────────
+    'Splicing'                 => 1,
     'Quality Assurance'        => 2,
-    'Service Delivery'         => 3,
-    'NOC Handover'             => 1,
-    'Customer Handover'        => 2,
-    'Billing Notification'     => 2,
+    'Service Delivery'         => 0.5,
+    'NOC Handover'             => 0.5,
+    'Customer Handover'        => 1,
+    'Billing Notification'     => 1,
     'Submitted'                => 1,
     # ── Procurement Subtask (Tracker 17) — 8 days total ──────────────────────
     'Quote Pending'              => 3,   # Deborah reviews scope and raises PR
@@ -40,7 +40,7 @@ class SnowSlaTimer < ActiveRecord::Base
   def self.sla_days
     stored = Setting.plugin_redmine_snow_sync['sla_days']
     return DEFAULT_SLA_DAYS if stored.blank?
-    DEFAULT_SLA_DAYS.keys.index_with { |k| stored[k].present? ? stored[k].to_i : DEFAULT_SLA_DAYS[k] }
+    DEFAULT_SLA_DAYS.keys.index_with { |k| stored[k].present? ? stored[k].to_f : DEFAULT_SLA_DAYS[k] }
   end
 
   # Convenience alias used elsewhere in the codebase

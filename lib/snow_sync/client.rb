@@ -9,6 +9,7 @@ module SnowSync
       sys_id number short_description description
       requested_for due_date opened_at company
       assignment_group state u_service_delivery_stage
+      u_order.u_order_name
     ].freeze
 
     def initialize(url:, username:, password:, field_account:, field_order:, field_service:)
@@ -18,12 +19,13 @@ module SnowSync
       @extra_fields  = [field_account, field_order, field_service].compact.uniq
     end
 
-    def fetch_requests(groups:, states:, delivery_stages: [], since: nil, offset: 0, limit: 100)
-      group_clause = "assignment_group.nameIN#{groups.join(',')}"
-      state_clause = states.any? ? "stateIN#{states.join(',')}" : nil
-      sds_clause   = delivery_stages.any? ? "u_service_delivery_stageIN#{delivery_stages.join(',')}" : nil
-      date_clause  = since ? "sys_created_on>=#{since.strftime('%Y-%m-%d %H:%M:%S')}" : nil
-      query        = [group_clause, state_clause, sds_clause, date_clause].compact.join('^') + '^ORDERBYsys_created_on'
+    def fetch_requests(groups:, states:, delivery_stages: [], approvals: [], since: nil, offset: 0, limit: 100)
+      group_clause    = "assignment_group.nameIN#{groups.join(',')}"
+      state_clause    = states.any?    ? "stateIN#{states.join(',')}"                           : nil
+      sds_clause      = delivery_stages.any? ? "u_service_delivery_stageIN#{delivery_stages.join(',')}" : nil
+      approval_clause = approvals.any? ? "request_stateIN#{approvals.join(',')}"               : nil
+      date_clause     = since ? "sys_created_on>=#{since.strftime('%Y-%m-%d %H:%M:%S')}" : nil
+      query           = [group_clause, state_clause, sds_clause, approval_clause, date_clause].compact.join('^') + '^ORDERBYsys_created_on'
       fields       = (CORE_FIELDS + @extra_fields).uniq.join(',')
 
       get('/api/now/table/sc_request',

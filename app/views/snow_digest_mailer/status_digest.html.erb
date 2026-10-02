@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body{margin:0;padding:0;background:#F4F6F9;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1A2332;}
+  .wrap{max-width:700px;margin:0 auto;background:#FFFFFF;}
+  /* header */
+  .hdr{background:#1B5E9B;padding:20px 28px 18px;}
+  .hdr .brand{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.6);margin-bottom:4px;}
+  .hdr h1{margin:0;font-size:19px;font-weight:700;color:#fff;line-height:1.2;}
+  .hdr .gen{font-size:11px;color:rgba(255,255,255,.55);margin-top:5px;}
+  /* kpis */
+  table.kpis{width:100%;border-collapse:collapse;border-bottom:2px solid #E8ECF1;}
+  table.kpis td{text-align:center;padding:13px 6px 11px;border-right:1px solid #E8ECF1;}
+  table.kpis td:last-child{border-right:none;}
+  .kn{font-size:24px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;}
+  .kl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#6B7A94;margin-top:3px;}
+  .kn.blue{color:#1B5E9B;} .kn.purple{color:#7C3AED;} .kn.amber{color:#92400E;} .kn.red{color:#DC2626;}
+  /* content */
+  .content{padding:20px 28px;}
+  /* alert */
+  .alert{background:#FEF9EC;border:1px solid #F59E0B;border-radius:5px;padding:9px 14px;font-size:12px;color:#92400E;margin-bottom:16px;line-height:1.5;}
+  /* section head */
+  .sh{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;padding:10px 0 5px;margin-top:16px;border-bottom:2px solid;}
+  .sh.pre{color:#1D4ED8;border-color:#3B82F6;} .sh.build{color:#B45309;border-color:#D97706;}
+  .sh.post{color:#065F46;border-color:#059669;} .sh.hold{color:#92400E;border-color:#D97706;} .sh.c2{color:#5B21B6;border-color:#7C3AED;}
+  /* digest table */
+  table.d{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px;}
+  table.d th{background:#F8FAFC;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7A94;padding:6px 7px;text-align:left;border-bottom:1px solid #E8ECF1;}
+  table.d th.r{text-align:right;}
+  table.d td{padding:7px 7px;border-bottom:1px solid #F0F2F5;vertical-align:top;color:#1A2332;}
+  table.d tr:last-child td{border-bottom:none;}
+  table.d td.r{text-align:right;font-variant-numeric:tabular-nums;}
+  table.d td.cnt{font-weight:700;font-size:14px;}
+  table.d td.crit{color:#DC2626;font-weight:700;} table.d td.warn{color:#B45309;font-weight:600;}
+  table.d td.asgn{font-size:11px;color:#556070;}
+  table.d td.unasn{font-size:11px;color:#DC2626;font-weight:600;}
+  /* phase left border */
+  table.d tr.pre td:first-child{border-left:3px solid #3B82F6;padding-left:10px;}
+  table.d tr.bld td:first-child{border-left:3px solid #D97706;padding-left:10px;}
+  table.d tr.pst td:first-child{border-left:3px solid #059669;padding-left:10px;}
+  table.d tr.hld td:first-child{border-left:3px solid #D97706;padding-left:10px;}
+  table.d tr.c2  td:first-child{border-left:3px solid #7C3AED;padding-left:10px;}
+  table.d tr.pnd td:first-child{border-left:3px solid #94A3B8;padding-left:10px;}
+  /* badges */
+  .ob{display:inline-block;background:#FEF2F2;color:#DC2626;border-radius:9px;padding:1px 7px;font-size:11px;font-weight:700;}
+  .nb{color:#94A3B8;font-size:11px;}
+  /* footer */
+  .ftr{background:#F4F6F9;border-top:1px solid #E2E8F0;padding:12px 28px;font-size:11px;color:#6B7A94;display:flex;justify-content:space-between;align-items:center;}
+  .ftr a{color:#1B5E9B;text-decoration:none;font-weight:600;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hdr">
+  <div class="brand">Liquid Telecom Zambia &mdash; Projects Portal</div>
+  <h1>Organic Orders &mdash; Status Digest</h1>
+  <div class="gen"><%= @now.strftime('%A, %d %B %Y at %H:%M %Z') %> &nbsp;&middot;&nbsp; Auto-generated &middot; 3&times; daily</div>
+</div>
+
+<table class="kpis"><tr>
+  <td><div class="kn blue"><%= @totals[:total_open] %></div><div class="kl">Open Orders</div></td>
+  <td><div class="kn blue"><%= @totals[:tracker14] %></div><div class="kl">Commercial</div></td>
+  <td><div class="kn purple"><%= @totals[:tracker18] %></div><div class="kl">C2</div></td>
+  <td><div class="kn amber"><%= @totals[:on_hold] %></div><div class="kl">On Hold</div></td>
+  <td><div class="kn red"><%= @totals[:overdue] %></div><div class="kl">SLA Breached</div></td>
+</tr></table>
+
+<div class="content">
+
+<% if @workload.any? %>
+<div class="sh pre" style="margin-top:8px;">Workload by Assignee <span style="font-weight:400;opacity:.7;">&mdash; open orders</span></div>
+<table class="d" style="margin-bottom:16px;">
+  <tr>
+    <th>Assignee</th>
+    <th class="r">Orders</th>
+    <th class="r">Load</th>
+    <th>Top Stages</th>
+  </tr>
+  <% @workload.each do |r| %>
+  <%
+    bar_pct  = [[(r[:count].to_f / (@workload.first[:count] > 0 ? @workload.first[:count] : 1)) * 100, 4].max, 100].min.round
+    bar_color = r[:count] >= 15 ? '#DC2626' : (r[:count] >= 8 ? '#D97706' : '#3B82F6')
+    cnt_class = r[:count] >= 15 ? 'crit' : (r[:count] >= 8 ? 'warn' : '')
+  %>
+  <tr>
+    <td style="white-space:nowrap;"><%= r[:name] %></td>
+    <td class="r cnt <%= cnt_class %>"><%= r[:count] %></td>
+    <td class="r" style="width:90px;padding-right:10px;">
+      <div style="background:#F0F2F5;border-radius:3px;height:8px;width:80px;display:inline-block;vertical-align:middle;">
+        <div style="background:<%= bar_color %>;border-radius:3px;height:8px;width:<%= bar_pct %>%;"></div>
+      </div>
+    </td>
+    <td class="asgn"><%= r[:stages] %></td>
+  </tr>
+  <% end %>
+</table>
+<% end %>
+
+<div class="alert">
+  <strong>SLA note:</strong> The breach count reflects historical backlog &mdash; most orders predate the updated 15.5-day targets (August 2026). New orders from that date forward will reflect current SLA performance.
+</div>
+
+<%
+  # Group rows by phase
+  pre_rows   = @rows.select { |r| r[:tracker] == 'Commercial Orders' && %w[Service\ Request\ Review Service\ Scheduling Contractor-Assignment Site\ Survey Quote\ Submission Build\ Approval].include?(r[:status]) }
+  build_rows = @rows.select { |r| r[:tracker] == 'Commercial Orders' && %w[Fiber\ Build Splicing].include?(r[:status]) }
+  post_rows  = @rows.select { |r| r[:tracker] == 'Commercial Orders' && %w[Quality\ Assurance Service\ Delivery NOC\ Handover Customer\ Handover Billing\ Notification Submitted].include?(r[:status]) }
+  c2_rows    = @rows.select { |r| r[:tracker] == 'C2' && !r[:on_hold] }
+  hold_rows  = @rows.select { |r| r[:on_hold] }
+  pend_rows  = @rows.select { |r| r[:status] == 'Rejection Pending' }
+
+  def age_class(d); d >= 30 ? 'crit' : (d >= 14 ? 'warn' : ''); end
+  def over_html(n); n > 0 ? "<span class='ob'>#{n}</span>" : "<span class='nb'>&mdash;</span>"; end
+  def assignee_str(s, max = 60); s.length > max ? s[0, s.rindex(',', max) || max] + ' +more' : s; end
+%>
+
+<% if pre_rows.any? %>
+<div class="sh pre">Pre-Build <span style="font-weight:400;opacity:.7;">&mdash; <%= pre_rows.sum { |r| r[:count] } %> orders</span></div>
+<table class="d">
+  <tr><th>Stage</th><th class="r">Count</th><th class="r">Avg in stage</th><th class="r">Oldest</th><th class="r">Overdue</th><th>Assigned to</th></tr>
+  <% pre_rows.each do |r| %>
+  <tr class="pre">
+    <td><%= r[:status] %></td>
+    <td class="r cnt"><%= r[:count] %></td>
+    <td class="r <%= age_class(r[:avg_status_age]) %>"><%= r[:avg_status_age] %>d</td>
+    <td class="r <%= age_class(r[:max_status_age]) %>"><%= r[:max_status_age] %>d</td>
+    <td class="r"><%= over_html(r[:overdue]).html_safe %></td>
+    <td class="<%= r[:assignees].include?('Unassigned') ? 'unasn' : 'asgn' %>">
+      <% if r[:assignees].include?('Unassigned (1') || r[:assignees] =~ /Unassigned \((\d+)/ %>
+        &#9888; <%= r[:assignees] %>
+      <% else %>
+        <%= assignee_str(r[:assignees]) %>
+      <% end %>
+    </td>
+  </tr>
+  <% end %>
+</table>
+<% end %>
+
+<% if build_rows.any? %>
+<div class="sh build">Build <span style="font-weight:400;opacity:.7;">&mdash; <%= build_rows.sum { |r| r[:count] } %> orders</span></div>
+<table class="d">
+  <tr><th>Stage</th><th class="r">Count</th><th class="r">Avg in stage</th><th class="r">Oldest</th><th class="r">Overdue</th><th>Assigned to</th></tr>
+  <% build_rows.each do |r| %>
+  <tr class="bld">
+    <td><%= r[:status] %></td>
+    <td class="r cnt"><%= r[:count] %></td>
+    <td class="r <%= age_class(r[:avg_status_age]) %>"><%= r[:avg_status_age] %>d</td>
+    <td class="r <%= age_class(r[:max_status_age]) %>"><%= r[:max_status_age] %>d</td>
+    <td class="r"><%= over_html(r[:overdue]).html_safe %></td>
+    <td class="asgn"><%= assignee_str(r[:assignees]) %></td>
+  </tr>
+  <% end %>
+</table>
+<% end %>
+
+<% if post_rows.any? %>
+<div class="sh post">Post-Build <span style="font-weight:400;opacity:.7;">&mdash; <%= post_rows.sum { |r| r[:count] } %> orders</span></div>
+<table class="d">
+  <tr><th>Stage</th><th class="r">Count</th><th class="r">Avg in stage</th><th class="r">Oldest</th><th class="r">Overdue</th><th>Assigned to</th></tr>
+  <% post_rows.each do |r| %>
+  <tr class="pst">
+    <td><%= r[:status] %></td>
+    <td class="r cnt"><%= r[:count] %></td>
+    <td class="r <%= age_class(r[:avg_status_age]) %>"><%= r[:avg_status_age] %>d</td>
+    <td class="r <%= age_class(r[:max_status_age]) %>"><%= r[:max_status_age] %>d</td>
+    <td class="r"><%= over_html(r[:overdue]).html_safe %></td>
+    <td class="asgn"><%= assignee_str(r[:assignees]) %></td>
+  </tr>
+  <% end %>
+</table>
+<% end %>
+
+<% if c2_rows.any? %>
+<div class="sh c2">C2 Orders &mdash; Tracker 18 <span style="font-weight:400;opacity:.7;">&mdash; <%= c2_rows.sum { |r| r[:count] } %> orders</span></div>
+<table class="d">
+  <tr><th>Stage</th><th class="r">Count</th><th class="r">Avg in stage</th><th class="r">Oldest</th><th class="r">Overdue</th><th>Assigned to</th></tr>
+  <% c2_rows.each do |r| %>
+  <tr class="c2">
+    <td><%= r[:status] %></td>
+    <td class="r cnt"><%= r[:count] %></td>
+    <td class="r <%= age_class(r[:avg_status_age]) %>"><%= r[:avg_status_age] %>d</td>
+    <td class="r <%= age_class(r[:max_status_age]) %>"><%= r[:max_status_age] %>d</td>
+    <td class="r"><%= over_html(r[:overdue]).html_safe %></td>
+    <td class="asgn"><%= assignee_str(r[:assignees]) %></td>
+  </tr>
+  <% end %>
+</table>
+<% end %>
+
+<% if hold_rows.any? %>
+<div class="sh hold">On Hold <span style="font-weight:400;opacity:.7;">&mdash; <%= hold_rows.sum { |r| r[:count] } %> orders</span></div>
+<table class="d">
+  <tr><th>Status</th><th class="r">Count</th><th class="r">Avg in stage</th><th class="r">Oldest</th><th class="r">Overdue</th><th>Assigned to</th></tr>
+  <% hold_rows.each do |r| %>
+  <tr class="hld">
+    <td><%= r[:status] %></td>
+    <td class="r cnt"><%= r[:count] %></td>
+    <td class="r <%= age_class(r[:avg_status_age]) %>"><%= r[:avg_status_age] %>d</td>
+    <td class="r <%= age_class(r[:max_status_age]) %>"><%= r[:max_status_age] %>d</td>
+    <td class="r"><%= over_html(r[:overdue]).html_safe %></td>
+    <td class="asgn"><%= assignee_str(r[:assignees]) %></td>
+  </tr>
+  <% end %>
+</table>
+<% end %>
+
+<% if pend_rows.any? %>
+<table class="d" style="margin-top:10px;">
+  <% pend_rows.each do |r| %>
+  <tr class="pnd">
+    <td><%= r[:status] %></td>
+    <td class="r cnt"><%= r[:count] %></td>
+    <td class="r"><%= r[:avg_status_age] %>d</td>
+    <td class="r"><%= r[:max_status_age] %>d</td>
+    <td class="r"><%= over_html(r[:overdue]).html_safe %></td>
+    <td class="asgn"><%= assignee_str(r[:assignees]) %></td>
+  </tr>
+  <% end %>
+</table>
+<% end %>
+
+</div>
+
+<div class="ftr">
+  <span>Auto-generated &middot; Liquid IT Projects Portal</span>
+  <a href="<%= @url %>">Open Dashboard &rarr;</a>
+</div>
+
+</div>
+</body>
+</html>

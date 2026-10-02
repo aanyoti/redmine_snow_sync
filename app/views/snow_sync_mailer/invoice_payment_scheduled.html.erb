@@ -10,9 +10,12 @@
     .body    { border: 1px solid #ddd; border-top: none; padding: 24px; border-radius: 0 0 4px 4px; }
     .facts   { width: 100%; border-collapse: collapse; margin: 16px 0; }
     .facts td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
-    .facts td:first-child { font-weight: bold; color: #555; width: 140px; }
+    .facts td:first-child { font-weight: bold; color: #555; width: 160px; }
     .note    { background: #f0f4ff; border-left: 4px solid #273c88; padding: 12px 16px;
                margin: 16px 0; font-size: 13px; line-height: 1.6; }
+    .btn     { display: inline-block; margin-top: 16px; padding: 10px 20px;
+               background: #273c88; color: #fff; text-decoration: none;
+               border-radius: 4px; font-size: 13px; }
     .footer  { font-size: 11px; color: #999; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; }
   </style>
 </head>
@@ -20,37 +23,32 @@
 <div class="wrapper">
 
   <div class="header">
-    <h2>&#128230; Purchase Order Notification</h2>
+    <h2>&#9989; Payment Scheduled</h2>
   </div>
 
   <div class="body">
-    <p>Dear <%= @contractor_name %>,</p>
+    <p>Dear <%= @author_name %>,</p>
 
     <p>
-      Your services for the order below have been approved and a Purchase Order has been raised.
-      You are hereby authorised to <strong>mobilise to site and commence work</strong> in accordance with
-      the approved scope and project delivery plan.
-    </p>
-
-    <p>
-      Please find the Purchase Order attached to this email. Upon completion, arrange to
-      <strong>invoice Liquid IT Procurement directly</strong> quoting the PO number below.
+      Your invoice submission has been reviewed and approved by our Finance team.
+      A payment has been <strong>scheduled</strong> for processing.
     </p>
 
     <table class="facts">
+      <tr><td>Invoice Reference</td><td><%= @issue.subject %></td></tr>
       <tr><td>PO Number</td><td><strong><%= @po_number %></strong></td></tr>
-      <tr><td>Order</td><td><%= @parent_issue.subject %></td></tr>
-      <tr><td>Reference #</td><td>#<%= @parent_issue.id %></td></tr>
+      <tr><td>Invoice Amount</td><td><strong><%= @invoice_amount %></strong></td></tr>
+      <tr><td>Invoice Date</td><td><%= @invoice_date %></td></tr>
+      <tr><td>Submission Type</td><td><%= @submission_type %></td></tr>
+      <tr><td>Redmine Reference</td><td>#<%= @issue.id %></td></tr>
     </table>
 
     <div class="note">
-      Please direct your invoice to the Liquid IT Procurement team and quote PO Number <strong><%= @po_number %></strong>
-      on all correspondence. Do not invoice the Projects team directly.
+      If you have any questions regarding this payment, please contact the Liquid IT Finance team
+      and quote PO Number <strong><%= @po_number %></strong> in all correspondence.
     </div>
 
-    <p style="margin-top:20px; font-size:13px; color:#555;">
-      If you have any questions regarding this Purchase Order, please contact the Liquid IT Procurement team.
-    </p>
+    <a href="<%= @issue_url %>" class="btn">View Invoice Submission</a>
   </div>
 
   <div class="footer">

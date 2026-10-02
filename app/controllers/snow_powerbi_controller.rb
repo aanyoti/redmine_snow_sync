@@ -24,6 +24,8 @@ class SnowPowerbiController < ApplicationController
     'sf_monthly'             => 'vw_sf_monthly',
     'sf_delivery_bridge'     => 'vw_sf_delivery_bridge',
     'sf_delivery_gap'        => 'vw_sf_delivery_gap',
+    # ── Checklists ──────────────────────────────────────────────
+    'checklist_compliance'   => 'vw_checklist_compliance',
   }.freeze
 
   # Fact tables that support ?updated_since incremental refresh

@@ -37,15 +37,56 @@ class SnowSyncMailer < ActionMailer::Base
     @portal_url      = REDMINE_URL
 
     if po_pdf && File.exist?(po_pdf.diskfile)
-      attachments[po_pdf.filename] = File.read(po_pdf.diskfile, encoding: 'binary')
+      attachments[po_pdf.filename] = {
+        mime_type: po_pdf.content_type,
+        content:   File.read(po_pdf.diskfile, encoding: 'binary')
+      }
     end
 
     mail(
-      to:           recipient_email,
-      from:         Setting.mail_from,
-      subject:      "Purchase Order #{@po_number} – #{parent_issue.subject}",
-      content_type: 'text/html'
+      to:      recipient_email,
+      from:    Setting.mail_from,
+      subject: "Purchase Order #{@po_number} – #{parent_issue.subject}"
     )
+  end
+
+  def invoice_payment_scheduled(recipient_email, author_name:, issue:, po_number:, invoice_amount:, invoice_date:, submission_type:)
+    @author_name     = author_name
+    @issue           = issue
+    @po_number       = po_number.presence || 'N/A'
+    @invoice_amount  = invoice_amount.presence || 'N/A'
+    @invoice_date    = invoice_date.presence || 'N/A'
+    @submission_type = submission_type.presence || 'N/A'
+    @issue_url       = "#{REDMINE_URL}/issues/#{issue.id}"
+
+    mail(
+      to:      recipient_email,
+      from:    Setting.mail_from,
+      subject: "Payment Scheduled – Invoice #{@po_number} | #{issue.subject}"
+    )
+  end
+
+  def sfdc_staleness_alert(message)
+    @message    = message
+    @checked_at = Time.current.strftime('%Y-%m-%d %H:%M UTC')
+
+    mail(
+      to:      'juuconsult@gmail.com',
+      from:    Setting.mail_from,
+      subject: '[ALERT] Salesforce Sync Stale — Redmine',
+      content_type: 'text/html'
+    ) do |format|
+      format.html do
+        render inline: <<~HTML
+          <p>Hello,</p>
+          <p><strong style="color:#c0392b;">&#9888; Salesforce Sync Alert</strong></p>
+          <p><%= @message %></p>
+          <p>The Power Automate flow <em>SFDC-Dataset Query</em> may have failed.
+             Please check the flow run history in Power Automate and re-run if needed.</p>
+          <p style="color:#888;font-size:12px;">Checked at: <%= @checked_at %></p>
+        HTML
+      end
+    end
   end
 
   private

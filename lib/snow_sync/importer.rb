@@ -11,32 +11,48 @@ module SnowSync
       @cf_map   = {}
     end
 
-    def run
+    LOCK_FILE = Rails.root.join('tmp', 'snow_sync.lock').freeze
+
+    def run(retroactive: false)
       unless configured?
         return { imported: 0, skipped: 0, errors: ['Plugin not fully configured — check username, password, project and tracker.'] }
+      end
+
+      lock_file = File.open(LOCK_FILE, File::RDWR | File::CREAT, 0o644)
+      unless lock_file.flock(File::LOCK_EX | File::LOCK_NB)
+        @log.warn 'SnowSync: another sync is already running — skipping.'
+        return { imported: 0, skipped: 0, errors: [] }
       end
 
       client          = build_client
       groups          = @cfg['assignment_groups'].split(',').map(&:strip).reject(&:blank?)
       states          = @cfg['poll_states'].to_s.split(',').map(&:strip).reject(&:blank?)
       delivery_stages = @cfg['poll_delivery_stage'].to_s.split(',').map(&:strip).reject(&:blank?)
+      approvals       = @cfg['poll_approval'].to_s.split(',').map(&:strip).reject(&:blank?)
       days_back       = @cfg['days_back'].to_i
 
-      since = if days_back > 0
-                days_back.days.ago
+      hard_floor = Time.new(2026, 3, 1, 0, 0, 0, '+00:00')
+
+      since = if retroactive
+                hard_floor
+              elsif days_back > 0
+                [days_back.days.ago, hard_floor].max
               elsif @cfg['last_sync_at'].present?
-                Time.parse(@cfg['last_sync_at'])
+                [Time.parse(@cfg['last_sync_at']), hard_floor].max
+              else
+                hard_floor
               end
 
       offset = 0
       limit  = 100
 
-      @log.info "SnowSync: querying since #{since&.iso8601 || 'all time (first run)'}"
+      mode = retroactive ? "RETROACTIVE (from #{hard_floor.to_date})" : "since #{since&.iso8601}"
+      @log.info "SnowSync: querying #{mode}"
 
       loop do
         records = client.fetch_requests(
           groups: groups, states: states, delivery_stages: delivery_stages,
-          since: since, offset: offset, limit: limit
+          approvals: approvals, since: since, offset: offset, limit: limit
         )
         break if records.blank?
 
@@ -46,13 +62,16 @@ module SnowSync
         offset += limit
       end
 
-      Setting.plugin_redmine_snow_sync = @cfg.merge('last_sync_at' => Time.current.iso8601)
+      Setting.plugin_redmine_snow_sync = @cfg.merge('last_sync_at' => Time.current.iso8601) unless retroactive
 
       backfill_salesforce_fields
 
       { imported: @imported, skipped: @skipped, errors: @errors }
     rescue SnowSync::ApiError => e
       { imported: @imported, skipped: @skipped, errors: ["ServiceNow API error: #{e.message}"] }
+    ensure
+      lock_file&.flock(File::LOCK_UN)
+      lock_file&.close
     end
 
     private
@@ -86,30 +105,26 @@ module SnowSync
         @log.info "SnowSync: #{number} consolidated into existing issue ##{existing_issue.id} (order #{order_number})"
       else
         issue = build_issue(rec)
-        if issue.save
-          attach_files(rec, issue, client)
-          enrich_from_pdf(issue)
-          SnowSyncRecord.create!(
-            snow_sys_id: sys_id,
-            snow_number: number,
-            issue_id:    issue.id,
-            sync_status: 'ok',
-            synced_at:   Time.current
-          )
-          @imported += 1
-          @log.info "SnowSync: imported #{number} → Redmine issue ##{issue.id}"
-          SnowSync::TeamsNotifier.notify('new_import', issue, snow_request: number)
-        else
-          msg = "#{number}: #{issue.errors.full_messages.join(', ')}"
-          @errors << msg
-          @log.error "SnowSync: failed to save issue for #{msg}"
-          SnowSyncRecord.create!(
-            snow_sys_id: sys_id,
-            snow_number: number,
-            sync_status: 'error',
-            sync_error:  issue.errors.full_messages.join(', '),
-            synced_at:   Time.current
-          )
+        ActiveRecord::Base.transaction do
+          if issue.save
+            SnowSyncRecord.create!(
+              snow_sys_id: sys_id,
+              snow_number: number,
+              issue_id:    issue.id,
+              sync_status: 'ok',
+              synced_at:   Time.current
+            )
+            attach_files(rec, issue, client)
+            enrich_from_pdf(issue)
+            @imported += 1
+            @log.info "SnowSync: imported #{number} → Redmine issue ##{issue.id}"
+            SnowSync::TeamsNotifier.notify('new_import', issue, snow_request: number)
+          else
+            msg = "#{number}: #{issue.errors.full_messages.join(', ')}"
+            @errors << msg
+            @log.error "SnowSync: failed to save issue for #{msg}"
+            raise ActiveRecord::Rollback
+          end
         end
       end
     rescue => e
@@ -137,8 +152,8 @@ module SnowSync
 
       # Auto-assign by tracker: Commercial Orders → Musonda Tekela, C2 → Larkson Chibesa
       default_assignee = case tracker.id
-                         when 14 then User.find_by(id: 17)
-                         when 18 then User.find_by(id: 18)
+                         when 14 then User.find_by(login: 'Musonda.Tekela')
+                         when 18 then User.find_by(login: 'Chib636')
                          end
 
       issue = Issue.new(
@@ -283,6 +298,7 @@ module SnowSync
         cf('Request State')          => disp(rec, 'state'),
         cf('Service Delivery Stage') => disp(rec, 'u_service_delivery_stage'),
         cf('SNow Sys ID')            => raw(rec, 'sys_id'),
+        cf('Opportunity Name')       => disp(rec, 'u_order.u_order_name'),
         '55'                         => disp(rec, @cfg['field_order']),
         '57'                         => disp(rec, 'number'),
       }
@@ -323,6 +339,7 @@ module SnowSync
         cf('MRR (ZMW)')      => mrr_zmw,
         cf('NRR (USD)')      => nrr_usd,
         cf('MRR (USD)')      => mrr_usd,
+        cf('Site Location')  => data[:site_location],
       }.reject { |k, v| k.nil? || v.nil? }
 
       issue.custom_field_values = updates
@@ -352,10 +369,17 @@ module SnowSync
       attachments = client.fetch_attachments(sys_id)
       return if attachments.blank?
 
+      existing_names = issue.attachments.map(&:filename).to_set
+
       attachments.each do |att|
         att_sys_id   = att['sys_id']
         filename     = att['file_name'] || att.dig('file_name', 'value') || 'attachment'
         content_type = att['content_type'] || att.dig('content_type', 'value') || 'application/octet-stream'
+
+        if existing_names.include?(filename)
+          @log.info "SnowSync: skipping duplicate attachment #{filename} on issue ##{issue.id}"
+          next
+        end
 
         file_data = client.download_attachment(att_sys_id)
 
@@ -434,10 +458,11 @@ module SnowSync
     #   - Opportunity Type: filled when blank
     #   - Account: updated whenever Salesforce has a different (authoritative) value
     def backfill_salesforce_fields
-      opp_cf_id   = cf('Opportunity Type')
-      order_cf_id = cf('Order Number')
-      acc_cf_id   = cf('Account')
-      return unless opp_cf_id && order_cf_id
+      opp_cf_id    = cf('Opportunity Type')
+      opp_num_cf_id = cf('LT Opportunity Number')
+      order_cf_id  = cf('Order Number')
+      acc_cf_id    = cf('Account')
+      return unless order_cf_id
 
       project_id = @cfg['target_project_id'].to_i
       lookback   = [(@cfg['days_back'].to_i * 2), 14].max.days.ago
@@ -459,7 +484,7 @@ module SnowSync
       placeholders = order_nums.map { '?' }.join(',')
       sf_rows = ActiveRecord::Base.connection.execute(
         ActiveRecord::Base.sanitize_sql_array(
-          ["SELECT DISTINCT ON (order_number) order_number, account_name, opportunity_type
+          ["SELECT DISTINCT ON (order_number) order_number, account_name, opportunity_type, lt_opp_number
             FROM salesforce_orders WHERE order_number IN (#{placeholders})", *order_nums]
         )
       ).index_by { |r| r['order_number'] }
@@ -467,16 +492,20 @@ module SnowSync
       return if sf_rows.empty?
 
       # Load current CF values for affected issues
-      issue_ids    = issue_orders.keys
-      current_opp  = CustomValue
+      issue_ids     = issue_orders.keys
+      current_opp   = opp_cf_id ? CustomValue
         .where(customized_type: 'Issue', customized_id: issue_ids, custom_field_id: opp_cf_id.to_i)
-        .pluck(:customized_id, :value).to_h
-      current_acc  = acc_cf_id ? CustomValue
+        .pluck(:customized_id, :value).to_h : {}
+      current_opp_num = opp_num_cf_id ? CustomValue
+        .where(customized_type: 'Issue', customized_id: issue_ids, custom_field_id: opp_num_cf_id.to_i)
+        .pluck(:customized_id, :value).to_h : {}
+      current_acc   = acc_cf_id ? CustomValue
         .where(customized_type: 'Issue', customized_id: issue_ids, custom_field_id: acc_cf_id.to_i)
         .pluck(:customized_id, :value).to_h : {}
 
-      opp_count = 0
-      acc_count = 0
+      opp_count     = 0
+      opp_num_count = 0
+      acc_count     = 0
 
       issue_orders.each do |issue_id, order_num|
         sf = sf_rows[order_num]
@@ -493,6 +522,18 @@ module SnowSync
           end
         end
 
+        # LT Opportunity Number — update whenever SF has a value and it differs
+        if opp_num_cf_id
+          sf_opp_num = sf['lt_opp_number'].presence
+          current    = current_opp_num[issue_id].to_s.strip
+          if sf_opp_num && sf_opp_num != current
+            CustomValue.where(customized_type: 'Issue', customized_id: issue_id, custom_field_id: opp_num_cf_id.to_i)
+                       .update_all(value: sf_opp_num)
+            opp_num_count += 1
+            @log.info "SnowSync: updated LT Opp Number on issue ##{issue_id}: '#{current}' → '#{sf_opp_num}' (#{order_num})"
+          end
+        end
+
         # Account Name — update whenever Salesforce has a different authoritative value
         if acc_cf_id
           sf_account = sf['account_name'].presence
@@ -506,8 +547,9 @@ module SnowSync
         end
       end
 
-      @log.info "SnowSync: backfilled Opportunity Type on #{opp_count} issue(s)" if opp_count > 0
-      @log.info "SnowSync: corrected Account Name on #{acc_count} issue(s)"      if acc_count > 0
+      @log.info "SnowSync: backfilled Opportunity Type on #{opp_count} issue(s)"       if opp_count > 0
+      @log.info "SnowSync: updated LT Opportunity Number on #{opp_num_count} issue(s)" if opp_num_count > 0
+      @log.info "SnowSync: corrected Account Name on #{acc_count} issue(s)"            if acc_count > 0
     end
 
     def salesforce_opportunity_type(order_num)

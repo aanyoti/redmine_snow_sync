@@ -21,7 +21,8 @@ module SnowSync
         prepared_by:    extract_pattern(text, /Prepared by:\s*(.+)/),
         currency:       detect_currency(text),
         nrr:            extract_subtotal(text, 0),
-        mrr:            extract_subtotal(text, 1)
+        mrr:            extract_subtotal(text, 1),
+        site_location:  extract_pattern(text, /(?:Site\s+)?(?:Address|Location)[:\s]+(.+)/)
       }.compact
     end
 
@@ -41,6 +42,17 @@ module SnowSync
       text.match(/charge\s*[\r\n]+\s*\(([A-Z]{3})\)/i)&.[](1)&.upcase ||
         text.match(/charge\s+\(([A-Z]{3})\)/i)&.[](1)&.upcase ||
         'ZMW'
+    end
+
+    def extract_town(text)
+      # Try explicit "Town:" label first, then look for a town after "Lusaka" / major Zambian cities
+      match = text.match(/Town[:\s]+([A-Za-z\s]+?)(?:\n|,|$)/)
+      return match[1].strip if match
+
+      # Fallback: scan for known Zambian town names in the address block
+      towns = %w[Lusaka Ndola Kitwe Livingstone Kabwe Chipata Solwezi Mongu Kasama Chingola Mufulira Luanshya Chililabombwe Mazabuka Kafue]
+      found = towns.find { |t| text.match?(/\b#{t}\b/i) }
+      found
     end
 
     def extract_subtotal(text, index)
