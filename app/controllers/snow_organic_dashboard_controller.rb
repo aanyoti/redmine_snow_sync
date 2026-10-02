@@ -737,6 +737,144 @@ class SnowOrganicDashboardController < ApplicationController
     }
   end
 
+  def sd_report
+    year  = params[:year].to_i.nonzero?  || Date.today.year
+    month = params[:month].to_i.nonzero? || Date.today.month
+
+    conn        = ActiveRecord::Base.connection
+    month_start = Date.new(year, month, 1)
+    month_end   = month_start.end_of_month
+    today       = [Date.today, month_end].min
+
+    target     = SnowMonthlyTarget.find_by(year: year, month: month)
+    locked     = target&.locked?
+    locked_ids = locked ? target.locked_issue_ids : []
+
+    # On Hold status IDs (87=Customer, 35/85/86=LT-side)
+    on_hold_cust_ids = [87]
+    on_hold_lt_ids   = [35, 85, 86]
+    on_hold_all_ids  = on_hold_cust_ids + on_hold_lt_ids
+
+    # Revenue helper — sum mrr/nrr_usd for a set of issue IDs
+    get_rev = ->(ids) {
+      return { mrr_usd: 0.0, nrr_usd: 0.0 } if ids.empty?
+      r = conn.select_one(<<~SQL)
+        SELECT coalesce(sum(coalesce(mrr_usd,0)),0)::float AS mrr_usd,
+               coalesce(sum(coalesce(nrr_usd,0)),0)::float AS nrr_usd
+        FROM vw_fact_all_orders WHERE issue_id IN (#{ids.join(',')})
+      SQL
+      { mrr_usd: r['mrr_usd'].to_f.round(2), nrr_usd: r['nrr_usd'].to_f.round(2) }
+    }
+
+    build_section = ->(tracker_ids, gpon_only, label) {
+      tid_q  = tracker_ids.join(',')
+      gpon_q = gpon_only ? "AND media_type = 'GPON'" : ''
+
+      # WIP issue IDs from locked snapshot or live AWIP
+      if locked && locked_ids.any?
+        wip_rows = conn.select_all(<<~SQL).to_a
+          SELECT issue_id, created_date FROM vw_fact_all_orders
+          WHERE issue_id IN (#{locked_ids.join(',')}) AND tracker_id IN (#{tid_q}) #{gpon_q}
+        SQL
+      else
+        wip_rows = conn.select_all(<<~SQL).to_a
+          SELECT issue_id, created_date FROM vw_fact_all_orders
+          WHERE active_wip = true AND tracker_id IN (#{tid_q}) #{gpon_q}
+        SQL
+      end
+
+      b_ids = wip_rows.select { |r| r['created_date'] && Date.parse(r['created_date'].to_s) < month_start }.map { |r| r['issue_id'].to_i }
+      a_ids = wip_rows.select { |r| r['created_date'] && Date.parse(r['created_date'].to_s) >= month_start }.map { |r| r['issue_id'].to_i }
+
+      b_rev = get_rev.(b_ids)
+      a_rev = get_rev.(a_ids)
+
+      # Live AW count (always current)
+      live_aw = conn.select_value(<<~SQL).to_i
+        SELECT count(*) FROM vw_fact_all_orders
+        WHERE active_wip = true AND tracker_id IN (#{tid_q}) #{gpon_q}
+      SQL
+
+      # Delivered: date_signed_off in [month_start, today]
+      del_rows = conn.select_all(<<~SQL).to_a
+        SELECT issue_id, mrr_usd, nrr_usd FROM vw_fact_all_orders
+        WHERE tracker_id IN (#{tid_q}) #{gpon_q}
+          AND date_signed_off >= #{conn.quote(month_start.to_s)}
+          AND date_signed_off <= #{conn.quote(today.to_s)}
+      SQL
+      d_rev = { mrr_usd: del_rows.sum { |r| r['mrr_usd'].to_f }.round(2),
+                nrr_usd: del_rows.sum { |r| r['nrr_usd'].to_f }.round(2) }
+
+      # Cancelled: Closed-Rejected (status 89) closed within the month
+      can_rows = conn.select_all(<<~SQL).to_a
+        SELECT f.issue_id, f.mrr_usd, f.nrr_usd FROM vw_fact_all_orders f
+        JOIN issues i ON i.id = f.issue_id
+        WHERE f.tracker_id IN (#{tid_q}) #{gpon_q}
+          AND f.status_id = 89
+          AND i.closed_on >= #{conn.quote(month_start.to_s)}
+          AND i.closed_on <  #{conn.quote((month_end + 1).to_s)}
+      SQL
+      can_rev = { mrr_usd: can_rows.sum { |r| r['mrr_usd'].to_f }.round(2),
+                  nrr_usd: can_rows.sum { |r| r['nrr_usd'].to_f }.round(2) }
+
+      # On Hold counts (current)
+      oh_cust = conn.select_value(<<~SQL).to_i
+        SELECT count(*) FROM vw_fact_all_orders
+        WHERE tracker_id IN (#{tid_q}) #{gpon_q} AND status_id IN (#{on_hold_cust_ids.join(',')})
+      SQL
+      oh_lt   = conn.select_value(<<~SQL).to_i
+        SELECT count(*) FROM vw_fact_all_orders
+        WHERE tracker_id IN (#{tid_q}) #{gpon_q} AND status_id IN (#{on_hold_lt_ids.join(',')})
+      SQL
+
+      t_count = target&.target_count&.to_i || (b_ids.size + a_ids.size)
+      t_rev   = locked ? get_rev.(wip_rows.map { |r| r['issue_id'].to_i }) : { mrr_usd: 0.0, nrr_usd: 0.0 }
+
+      {
+        label:        label,
+        target:       { count: t_count, mrr_usd: t_rev[:mrr_usd], nrr_usd: t_rev[:nrr_usd] },
+        backorder:    { count: b_ids.size, mrr_usd: b_rev[:mrr_usd], nrr_usd: b_rev[:nrr_usd] },
+        active_wip:   { count: live_aw },
+        added:        { count: a_ids.size, mrr_usd: a_rev[:mrr_usd], nrr_usd: a_rev[:nrr_usd] },
+        total_wip:    { count: b_ids.size + a_ids.size, mrr_usd: (b_rev[:mrr_usd] + a_rev[:mrr_usd]).round(2), nrr_usd: (b_rev[:nrr_usd] + a_rev[:nrr_usd]).round(2) },
+        delivered:    { count: del_rows.size, mrr_usd: d_rev[:mrr_usd], nrr_usd: d_rev[:nrr_usd] },
+        cancelled:    { count: can_rows.size, mrr_usd: can_rev[:mrr_usd], nrr_usd: can_rev[:nrr_usd] },
+        on_hold_cust: oh_cust,
+        on_hold_lt:   oh_lt,
+        achieved_pct: t_count > 0 ? (del_rows.size.to_f / t_count * 100).round(1) : nil
+      }
+    }
+
+    enterprise = build_section.([14, 18], false, 'Enterprise / Commercial SD')
+    gpon       = build_section.([14],     true,  'GPON SD')
+
+    # Daily delivered breakdown for chart
+    daily = conn.select_all(<<~SQL).to_a
+      SELECT
+        date_signed_off::text                                                     AS date,
+        count(*)                                                                  AS enterprise,
+        count(*) FILTER (WHERE tracker_id = 14 AND media_type = 'GPON')         AS gpon
+      FROM vw_fact_all_orders
+      WHERE tracker_id IN (14,18)
+        AND date_signed_off >= #{conn.quote(month_start.to_s)}
+        AND date_signed_off <= #{conn.quote(month_end.to_s)}
+      GROUP BY date_signed_off ORDER BY date_signed_off
+    SQL
+
+    render json: {
+      year:             year,
+      month:            month,
+      month_label:      "#{Date::MONTHNAMES[month]} #{year}",
+      today:            today.to_s,
+      month_start:      month_start.to_s,
+      month_end:        month_end.to_s,
+      target_locked:    locked,
+      target_locked_at: target&.locked_at&.strftime('%d %b %Y'),
+      sections:         { enterprise: enterprise, gpon: gpon },
+      daily:            daily.map { |r| { date: r['date'], enterprise: r['enterprise'].to_i, gpon: r['gpon'].to_i } }
+    }
+  end
+
   private
 
   SNOW_LIVE_USER = 'WebServiceUser'

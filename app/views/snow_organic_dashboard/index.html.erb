@@ -192,6 +192,7 @@ tbody tr:last-child{border-bottom:none;}
   <button class="nav-tab" data-group="organic" onclick="showTab('org-revenue',this)">Revenue &amp; Targets</button>
   <button class="nav-tab" data-group="organic" onclick="showTab('org-sla',this)">SLA Performance</button>
   <button class="nav-tab" data-group="organic" onclick="showTab('org-wip',this)">Active WIP</button>
+  <button class="nav-tab" data-group="organic" onclick="showTab('org-sdreport',this)">SD Report</button>
   <button class="nav-tab" data-group="guide" onclick="showTab('pbi-guide',this)">Full Guide</button>
   <button class="nav-tab" data-group="snow" onclick="showTab('snow-overview',this)">Overview</button>
   <button class="nav-tab" data-group="snow" onclick="showTab('snow-stage',this)">By Stage</button>
@@ -855,6 +856,29 @@ tbody tr:last-child{border-bottom:none;}
       <th>Assignee</th><th>MRR (ZMW)</th><th>MRR (USD)</th><th>NRR (ZMW)</th><th>NRR (USD)</th><th>Due Date</th><th>Age</th><th></th></tr></thead>
     <tbody id="wipTable"></tbody>
   </table></div>
+</div>
+
+<!-- ═══ SD REPORT ═══ -->
+<div class="page" id="page-org-sdreport">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+    <div class="section-title" style="margin:0">SD Report</div>
+    <select id="sdrMonth" onchange="loadSDReport(true)" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px">
+      <option value="">Live (current month)</option>
+      <option value="2026-10">October 2026</option>
+      <option value="2026-9">September 2026</option>
+      <option value="2026-8">August 2026</option>
+      <option value="2026-7">July 2026</option>
+      <option value="2026-6">June 2026</option>
+      <option value="2026-5">May 2026</option>
+      <option value="2026-4">April 2026</option>
+      <option value="2026-3">March 2026</option>
+    </select>
+    <span id="sdrLockBadge" style="display:none;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600"></span>
+    <button onclick="loadSDReport(true)" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:11px;cursor:pointer">&#8635; Refresh</button>
+  </div>
+  <div id="sdrContent" style="min-height:120px">
+    <div style="text-align:center;padding:48px;color:var(--muted)">Select a period above to load the SD Report.</div>
+  </div>
 </div>
 
 <!-- ═══ POWERBI GUIDE ═══ -->
@@ -2106,6 +2130,175 @@ function initSnowFilters(){
       cb.addEventListener('change',()=>{ msUpdateBtn(id); if(SNOW_LOADED){ SNOW_LOADED=false; fetchSnowData(); } });
     });
   });
+}
+
+// ═══ SD REPORT ═══════════════════════════════════════════
+let SDR_LOADED = false;
+
+function showTab(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (id === 'org-sdreport' && !SDR_LOADED) { loadSDReport(); }
+}
+
+async function loadSDReport(force) {
+  const sel = document.getElementById('sdrMonth');
+  const val = sel ? sel.value : '';
+  let year, month;
+  if (val) {
+    [year, month] = val.split('-').map(Number);
+  } else {
+    const now = new Date();
+    year = now.getFullYear(); month = now.getMonth() + 1;
+  }
+  const content = document.getElementById('sdrContent');
+  content.innerHTML = '<div style="text-align:center;padding:48px;color:var(--muted)">Loading…</div>';
+  const badge = document.getElementById('sdrLockBadge');
+  badge.style.display = 'none';
+  try {
+    const res = await fetch(`/snow_organic_dashboard/sd_report?year=${year}&month=${month}`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    SDR_LOADED = true;
+    renderSDReport(d, content, badge);
+  } catch (e) {
+    content.innerHTML = `<div style="color:#dc2626;padding:24px">Error loading SD Report: ${e.message}</div>`;
+  }
+}
+
+function renderSDReport(d, container, badge) {
+  // Lock badge
+  if (d.target_locked) {
+    badge.textContent = '🔒 Target locked ' + d.target_locked_at;
+    badge.style.background = '#dcfce7'; badge.style.color = '#14532d';
+    badge.style.display = 'inline-flex';
+  } else {
+    badge.textContent = '🔓 Target not locked';
+    badge.style.background = '#fef3c7'; badge.style.color = '#92400e';
+    badge.style.display = 'inline-flex';
+  }
+
+  const fmtN  = n => (n === null || n === undefined) ? '—' : Number(n).toLocaleString('en-US', {maximumFractionDigits: 0});
+  const fmtR  = n => (!n || n === 0) ? '—' : '$' + Number(n).toLocaleString('en-US', {maximumFractionDigits: 0});
+  const fmtPct = p => (p === null || p === undefined) ? '—' : p.toFixed(1) + '%';
+
+  const sectionHtml = (s) => {
+    const b = s; const t = s.target; const bk = s.backorder; const aw = s.active_wip;
+    const a = s.added; const tw = s.total_wip; const c = s.cancelled;
+    const del = s.delivered; const pct = s.achieved_pct;
+
+    const dataRow = (label, getVal, cls) => {
+      const v = (obj, field) => obj ? (obj[field] !== undefined ? obj[field] : null) : null;
+      const projected = label === 'SOs' && t && t.count > 0 && del.count >= 0
+        ? Math.max(0, t.count - del.count - (c.count||0)) : null;
+      return `<tr class="${cls||''}">
+        <td style="font-weight:600;white-space:nowrap">${label}</td>
+        <td>${fmtN(v(bk, getVal))}</td>
+        <td>${fmtN(v(aw, 'count'))}</td>
+        <td>${fmtN(v(t, getVal))}</td>
+        <td>${fmtN(v(a, getVal))}</td>
+        <td style="font-weight:600">${fmtN(v(tw, getVal))}</td>
+        <td>${fmtN(v(c, getVal))}</td>
+        <td style="color:#16a34a;font-weight:600">${fmtN(v(del, getVal))}</td>
+        <td style="font-weight:700;color:${pct >= 100 ? '#16a34a' : pct >= 80 ? '#d97706' : '#dc2626'}">${label === 'SOs' ? fmtPct(pct) : ''}</td>
+        <td>${label === 'SOs' ? (projected !== null ? fmtN(projected) : '—') : ''}</td>
+      </tr>`;
+    };
+
+    return `
+    <div class="chart-card" style="margin-bottom:20px;padding:0;overflow:visible">
+      <div style="padding:10px 16px;background:var(--header-bg,#1e3a5f);color:#fff;border-radius:8px 8px 0 0;font-weight:600;font-size:13px">${s.label}</div>
+      <div class="tbl" style="margin:0">
+        <table>
+          <thead><tr>
+            <th style="min-width:80px"></th>
+            <th title="Orders carried over from previous periods">Backorder (B)</th>
+            <th title="Current live Active WIP count">Active WIP (AW)</th>
+            <th title="Locked monthly target">SD Target (T*)</th>
+            <th title="New orders added this period">Added (A)</th>
+            <th title="B + A">Total WIP (B+A)</th>
+            <th>Cancelled</th>
+            <th title="Orders with Date Signed Off in this period" style="color:#16a34a">Delivered (D)</th>
+            <th title="D ÷ T*">Achieved (D/T*)</th>
+            <th title="T* − D − Cancelled">Projected</th>
+          </tr></thead>
+          <tbody>
+            ${dataRow('SOs',     'count',   '')}
+            ${dataRow('MRR (US$)', 'mrr_usd', 'revenue-row')}
+            ${dataRow('NRR (US$)', 'nrr_usd', 'revenue-row')}
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:10px 16px 14px">
+        <span style="font-size:11px;font-weight:600;color:var(--muted)">On Hold:</span>
+        <span style="margin-left:12px;font-size:12px">
+          On Hold – Customer: <strong>${fmtN(s.on_hold_cust)}</strong>
+          &nbsp;&nbsp;On Hold – LT: <strong>${fmtN(s.on_hold_lt)}</strong>
+          &nbsp;&nbsp;Total: <strong>${fmtN(s.on_hold_cust + s.on_hold_lt)}</strong>
+        </span>
+      </div>
+    </div>`;
+  };
+
+  // Daily cumulative chart
+  const maxEnt = d.daily.reduce((acc, r) => acc + r.enterprise, 0);
+  let cumEnt = 0, cumGpon = 0;
+  const cumDaily = d.daily.map(r => {
+    cumEnt  += r.enterprise;
+    cumGpon += r.gpon;
+    return { date: r.date, enterprise: cumEnt, gpon: cumGpon };
+  });
+
+  const chartHtml = d.daily.length > 0 ? `
+    <div class="chart-card" style="margin-bottom:20px">
+      <div class="ct">Daily Deliveries — ${d.month_label} (Cumulative)</div>
+      <div style="height:200px;position:relative"><canvas id="sdrDailyChart"></canvas></div>
+    </div>` : '';
+
+  container.innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+      Showing: <strong>${d.month_label}</strong> &nbsp;&middot;&nbsp; As of: <strong>${d.today}</strong>
+      ${d.target_locked ? ' &nbsp;&middot;&nbsp; <span style="color:#14532d">&#128274; Target locked ' + d.target_locked_at + '</span>' : ''}
+    </div>
+    ${sectionHtml(d.sections.enterprise)}
+    ${sectionHtml(d.sections.gpon)}
+    ${chartHtml}
+    <style>
+      .revenue-row td { font-size:11px; color: var(--muted); }
+      #page-org-sdreport .tbl table th { background:var(--surface-alt,#f8fafc); font-size:10px; }
+    </style>
+  `;
+
+  // Build daily chart
+  if (d.daily.length > 0) {
+    const tgt = d.sections.enterprise.target ? d.sections.enterprise.target.count : null;
+    const ctx = document.getElementById('sdrDailyChart');
+    if (ctx) {
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: cumDaily.map(r => r.date.substring(5)),
+          datasets: [
+            { label: 'Enterprise (cumulative)', data: cumDaily.map(r => r.enterprise), borderColor:'#1a3a6b', backgroundColor:'rgba(26,58,107,0.08)', fill:true, tension:0.3, pointRadius:3 },
+            { label: 'GPON (cumulative)',        data: cumDaily.map(r => r.gpon),       borderColor:'#16a34a', backgroundColor:'rgba(22,163,74,0.06)',  fill:true, tension:0.3, pointRadius:3 },
+            ...(tgt ? [{ label:'Target (T*)', data: cumDaily.map(() => tgt), borderColor:'#dc2626', borderDash:[6,3], fill:false, pointRadius:0, borderWidth:1.5 }] : [])
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { labels: { font: {size:10}, color:'#1e293b' } } },
+          scales: {
+            x: { ticks: { font:{size:9}, color:'#64748b' }, grid: { color:'#f0f2f8' } },
+            y: { beginAtZero:true, ticks: { font:{size:9}, color:'#64748b' }, grid: { color:'#f0f2f8' } }
+          }
+        }
+      });
+    }
+  }
 }
 
 // ═══ INIT ════════════════════════════════════════════════

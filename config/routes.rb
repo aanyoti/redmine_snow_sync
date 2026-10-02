@@ -27,6 +27,7 @@ Rails.application.routes.draw do
   get  'snow_organic_dashboard',            to: 'snow_organic_dashboard#index',      as: 'snow_organic_dashboard'
   get  'snow_organic_dashboard/filter',    to: 'snow_organic_dashboard#filter',     as: 'snow_organic_dashboard_filter'
   get  'snow_organic_dashboard/snow_live', to: 'snow_organic_dashboard#snow_live',  as: 'snow_organic_dashboard_snow_live'
+  get  'snow_organic_dashboard/sd_report', to: 'snow_organic_dashboard#sd_report',  as: 'snow_organic_dashboard_sd_report'
 
   # PowerBI read-only API
   get  'api/powerbi',                       to: 'snow_powerbi#index',                as: 'snow_powerbi_index'
