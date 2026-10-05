@@ -177,8 +177,13 @@ ActiveSupport.on_load(:active_record) do
       if status_id == 49 && status_id_was == SERVICE_SCHEDULING_STATUS
         project_code = custom_field_value(109).to_s.strip
         errors.add(:base, 'Project Code is required before Contractor Assignment') if project_code.blank?
-        errors.add(:base, 'KMZ/KML Site Plan is required before Contractor Assignment') unless custom_field_value(110).present?
-        errors.add(:base, 'BOQ Document is required before Contractor Assignment') unless custom_field_value(111).present?
+        already = ->(name) { errors.full_messages.any? { |m| m =~ /#{Regexp.escape(name)}.*blank/i } }
+        if custom_field_value(110).blank? && !already.('Kmz/kml site plan')
+          errors.add(:base, 'KMZ/KML Site Plan is required before Contractor Assignment')
+        end
+        if custom_field_value(111).blank? && !already.('Boq document')
+          errors.add(:base, 'BOQ Document is required before Contractor Assignment')
+        end
       end
     end
 
